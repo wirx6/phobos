@@ -734,7 +734,6 @@ uint multibyteMulAdd(char op)(uint [] dest, const uint [] src, uint multiplier, 
     // EDI = dest
     // ESI = src
 
-    enum string OP = (op=='+')? "add" : "sub";
     version(D_PIC) {
         enum { zero = 0 }
     } else {
@@ -768,7 +767,7 @@ uint multibyteMulAdd(char op)(uint [] dest, const uint [] src, uint multiplier, 
         jnz L_enter_odd;
 }
                 // Main loop, with entry point for even length
-mixin(asmMulAdd_innerloop(OP, "ESP+LASTPARAM"));
+mixin(asmMulAdd_innerloop((op=='+')? "add" : "sub", "ESP+LASTPARAM"));
 asm {
         mov EAX, EBP; // get final carry
         pop EBP;
@@ -778,7 +777,7 @@ asm {
         ret 5*4;
 }
 L_enter_odd:
-    mixin(asmMulAdd_enter_odd(OP, "ESP+LASTPARAM"));
+    mixin(asmMulAdd_enter_odd((op=='+')? "add" : "sub", "ESP+LASTPARAM"));
 }
 
 unittest

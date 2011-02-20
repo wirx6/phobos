@@ -3383,6 +3383,11 @@ T toImpl(T, S)(S d) if (is(Unqual!S == double) && isSomeString!(T))
 {
     //alias Unqual!(ElementType!T) Char;
     char[20] buffer;
+    version (LDC) // FIXME: workaround for case when this function returns "-nan"
+    {
+        if (isnan(d))
+            return "nan";
+    }
     int len = sprintf(buffer.ptr, "%g", d);
     return to!T(buffer[0 .. len].dup);
 }

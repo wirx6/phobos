@@ -315,8 +315,15 @@ class OutBuffer
     void printf(string format, ...)
     {
         va_list ap;
-        ap = cast(va_list)&format;
-        ap += format.sizeof;
+        version(LDC)
+        {
+            ap = _argptr;
+        }
+        else
+        {
+            ap = cast(va_list)&format;
+            ap += format.sizeof;
+        }
         vprintf(format, ap);
     }
 
