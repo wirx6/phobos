@@ -84,6 +84,8 @@ version (Windows) {
   private import std.file;
 }
 
+version (LDC) version (X86_64) version = LDC_X86_64;
+
 /// InputStream is the interface for readable streams.
 
 interface InputStream {
@@ -1132,7 +1134,9 @@ class Stream : InputStream, OutputStream {
     size_t psize = buffer.length;
     size_t count;
     while (true) {
-      version (Win32) {
+      version (LDC_X86_64)
+        throw new Exception("unsupported platform");
+      else version (Win32) {
         count = _vsnprintf(p, psize, f, args);
         if (count != -1)
           break;

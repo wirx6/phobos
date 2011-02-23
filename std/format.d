@@ -29,6 +29,9 @@ version(unittest) {
     import std.stdio;
 }
 
+version (X86) version = SimpleVaargs;
+version (LDC) version = SimpleVaargs;
+
 version (Windows) version (DigitalMars)
 {
     version = DigitalMarsC;
@@ -2923,7 +2926,7 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
           while (len--)
           {
             //doFormat(putc, (&valti)[0 .. 1], p);
-            version(X86)
+            version(SimpleVaargs)
                 argptr = p;
             else version(X86_64)
             {
@@ -2974,7 +2977,7 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                 void* pvalue = pkey + keysizet; 
                 
                 //doFormat(putc, (&keyti)[0..1], pkey); 
-                version (X86) 
+                version (SimpleVaargs) 
                     argptr = pkey; 
                 else 
                 {   __va_list va; 
@@ -2987,7 +2990,7 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
 
                 putc(':');
                 //doFormat(putc, (&valti)[0..1], pvalue);
-                version (X86) 
+                version (SimpleVaargs) 
                     argptr = pvalue; 
                 else 
                 {   __va_list va2; 
@@ -3143,7 +3146,7 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                 goto Lcomplex;
 
             case Mangle.Tsarray:
-                version (X86) 
+                version (SimpleVaargs) 
                     putArray(argptr, (cast(TypeInfo_StaticArray)ti).len, (cast(TypeInfo_StaticArray)ti).next); 
                 else 
                     putArray((cast(__va_list*)argptr).stack_args, (cast(TypeInfo_StaticArray)ti).len, (cast(TypeInfo_StaticArray)ti).next);
@@ -3238,7 +3241,7 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                 if (tis.xtoString is null)
                     throw new FormatError("Can't convert " ~ tis.toString()
                             ~ " to string: \"string toString()\" not defined");
-                version(X86)
+                version(SimpleVaargs)
                 {
                     s = tis.xtoString(argptr);
                     argptr += (tis.tsize() + 3) & ~3;
