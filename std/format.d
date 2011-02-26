@@ -3243,8 +3243,16 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                             ~ " to string: \"string toString()\" not defined");
                 version(SimpleVaargs)
                 {
-                    s = tis.xtoString(argptr);
-                    argptr += (tis.tsize() + 3) & ~3;
+                    version (X86) {
+                        s = tis.xtoString(argptr);
+                        argptr += (tis.tsize() + 3) & ~3;
+                    } else {
+                        auto talign = tis.talign();
+                        void* ap = cast(void*)argptr;
+                        auto p = cast(void*)((cast(size_t)ap + talign - 1) & ~(talign - 1));
+                        argptr = cast(void*)(cast(size_t)p + ((tis.tsize() + size_t.sizeof - 1) & ~(size_t.sizeof - 1)));
+                        s = tis.xtoString(p);
+                    }
                 }
                 else version (X86_64) 
                 { 
