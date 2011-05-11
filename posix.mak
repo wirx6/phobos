@@ -53,9 +53,9 @@ ROOT = $(ROOT_OF_THEM_ALL)/$(OS)/$(BUILD)/$(MODEL)
 DOCSRC = ../d-programming-language.org
 WEBSITE_DIR = ../web
 DOC_OUTPUT_DIR = $(WEBSITE_DIR)/phobos-prerelease
-SRC_DOCUMENTABLES = phobos.d $(addsuffix .d,$(STD_MODULES))
+SRC_DOCUMENTABLES = index.d $(addsuffix .d,$(STD_MODULES))
 STDDOC = $(DOCSRC)/std.ddoc
-DDOCFLAGS=-m$(MODEL) -d -c -o- $(STDDOC) -I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS)
+DDOCFLAGS=-m$(MODEL) -d -c -o- -version=StdDdoc $(STDDOC) -I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS)
 
 # Variable defined in an OS-dependent manner (see below)
 CC =
@@ -156,16 +156,18 @@ STD_MODULES = $(addprefix std/, algorithm array base64 bigint bitmanip	\
         compiler complex concurrency container contracts conv cpuid		\
         cstream ctype date datetime datebase dateparse demangle			\
         encoding exception file format functional getopt gregorian		\
-        intrinsic json loader math mathspecial md5 metastrings mmfile	\
-        numeric outbuffer path perf process random range regex regexp	\
-        signals socket socketstream stdint stdio stdiobase stream		\
-        string syserror system traits typecons typetuple uni uri utf	\
-        variant xml zip zlib)
+        json loader math mathspecial md5 metastrings mmfile numeric		\
+        outbuffer parallelism path perf process random range regex		\
+        regexp signals socket socketstream stdint stdio stdiobase		\
+        stream string syserror system traits typecons typetuple uni		\
+        uri utf variant xml zip zlib)
+
+STD_NET_MODULES = $(addprefix std/net/, isemail)
 
 # Other D modules that aren't under std/
 EXTRA_MODULES := $(addprefix std/c/, stdarg stdio) $(addprefix etc/c/,	\
         zlib) $(addprefix std/internal/math/, biguintcore biguintnoasm  \
-        biguintx86 gammafunction errorfunction)
+        biguintx86 gammafunction errorfunction) $(addprefix etc/c/, curl)
 
 # OS-specific D modules
 EXTRA_MODULES_LINUX := $(addprefix std/c/linux/, linux socket)
@@ -180,7 +182,7 @@ else
 endif
 
 # Aggregate all D modules relevant to this build
-D_MODULES = crc32 $(STD_MODULES) $(EXTRA_MODULES)
+D_MODULES = crc32 $(STD_MODULES) $(EXTRA_MODULES) $(STD_NET_MODULES)
 # Add the .d suffix to the module names
 D_FILES = $(addsuffix .d,$(D_MODULES))
 # Aggregate all D modules over all OSs (this is for the zip file)
@@ -245,10 +247,7 @@ DISABLED_TESTS += std/format
 DISABLED_TESTS += std/math
 # seems to infinite loop, need to reduce
 
-DISABLED_TESTS += std/random
-DISABLED_TESTS += std/internal/math/biguintnoasm
-
-$(addprefix $(ROOT)/unittest/,$(DISABLED_TESTS)) : 
+$(addprefix $(ROOT)/unittest/,$(DISABLED_TESTS)) :
 	@echo Testing $@ - disabled
 endif
 
@@ -288,8 +287,8 @@ $(DRUNTIME) :
 ###########################################################
 # html documentation
 
-$(DOC_OUTPUT_DIR)/%.html : %.d $(STDDOC)
-	$(DDOC) $(DDOCFLAGS) -Df$@ $<
+$(DOC_OUTPUT_DIR)/. :
+	mkdir -p $@
 
 $(DOC_OUTPUT_DIR)/std_%.html : std/%.d $(STDDOC)
 	$(DDOC) $(DDOCFLAGS) -Df$@ $<
@@ -300,7 +299,10 @@ $(DOC_OUTPUT_DIR)/std_c_%.html : std/c/%.d $(STDDOC)
 $(DOC_OUTPUT_DIR)/std_c_linux_%.html : std/c/linux/%.d $(STDDOC)
 	$(DDOC) $(DDOCFLAGS) -Df$@ $<
 
-html : $(addprefix $(DOC_OUTPUT_DIR)/, $(subst /,_,$(subst .d,.html,	\
+$(DOC_OUTPUT_DIR)/%.html : %.d $(STDDOC)
+	$(DDOC) $(DDOCFLAGS) -Df$@ $<
+
+html : $(DOC_OUTPUT_DIR)/. $(addprefix $(DOC_OUTPUT_DIR)/, $(subst /,_,$(subst .d,.html,	\
 	$(SRC_DOCUMENTABLES)))) $(STYLECSS_TGT)
 #	@$(MAKE) -f $(DOCSRC)/linux.mak -C $(DOCSRC) --no-print-directory
 

@@ -2116,7 +2116,7 @@ real rint(real x) @safe pure nothrow;      /* intrinsic */
  */
 long lrint(real x) @trusted pure nothrow
 {
-    version(InlineAsm_X86_Any)
+    /*version(InlineAsm_X86_Any)
     {
         long n;
         asm
@@ -2125,9 +2125,9 @@ long lrint(real x) @trusted pure nothrow
             fistp n;
         }
         return n;
-    } else {
+    } else {*/
         return core.stdc.math.llrintl(x);
-    }
+    //}
 }
 
 /*******************************************
