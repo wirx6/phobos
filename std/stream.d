@@ -73,6 +73,7 @@ enum SeekPos {
 
 private {
   import std.conv;
+  import std.ascii;
   import std.format;
   import std.system;    // for Endian enumeration
   import std.utf;
@@ -163,8 +164,9 @@ interface InputStream {
    * For example, to echo a file line-by-line with line numbers run:
    * ------------------------------------
    * Stream file = new BufferedFile("sample.txt");
-   * foreach(ulong n, string line; file) {
-   *   stdout.writefln("line %d: %s",n,line);
+   * foreach(ulong n, char[] line; file)
+   * {
+   *     writefln("line %d: %s", n, line);
    * }
    * file.close();
    * ------------------------------------
@@ -488,6 +490,7 @@ class Stream : InputStream, OutputStream {
         } else {
           prevCr = true;
         }
+        goto case;
       case '\n':
       case char.init:
         result.length = strlen;
@@ -530,6 +533,7 @@ class Stream : InputStream, OutputStream {
         } else {
           prevCr = true;
         }
+        goto case;
       case '\n':
       case wchar.init:
         result.length = strlen;
@@ -729,7 +733,7 @@ class Stream : InputStream, OutputStream {
         }
         // read field width
         int width = 0;
-        while (isdigit(fmt[i])) {
+        while (isDigit(fmt[i])) {
           width = width * 10 + (fmt[i] - '0');
           i++;
         }
@@ -751,7 +755,7 @@ class Stream : InputStream, OutputStream {
         case 'i':
         case 'I':
           {
-            while (iswhite(c)) {
+            while (isWhite(c)) {
               c = getc();
               count++;
             }
@@ -785,7 +789,7 @@ class Stream : InputStream, OutputStream {
             {
                 case 'd':       // decimal
                 case 'u': {
-                  while (isdigit(c) && width) {
+                  while (isDigit(c) && width) {
                     n = n * 10 + (c - '0');
                     width--;
                     c = getc();
@@ -794,7 +798,7 @@ class Stream : InputStream, OutputStream {
                 } break;
 
                 case 'o': {     // octal
-                  while (isoctdigit(c) && width) {
+                  while (isOctalDigit(c) && width) {
                     n = n * 8 + (c - '0');
                     width--;
                     c = getc();
@@ -803,9 +807,9 @@ class Stream : InputStream, OutputStream {
                 } break;
 
                 case 'x': {     // hexadecimal
-                  while (ishexdigit(c) && width) {
+                  while (isHexDigit(c) && width) {
                     n *= 0x10;
-                    if (isdigit(c))
+                    if (isDigit(c))
                       n += c - '0';
                     else
                       n += 0xA + (c | 0x20) - 'a';
@@ -856,7 +860,7 @@ class Stream : InputStream, OutputStream {
         case 'g':
         case 'G':
           {
-            while (iswhite(c)) {
+            while (isWhite(c)) {
               c = getc();
               count++;
             }
@@ -870,7 +874,7 @@ class Stream : InputStream, OutputStream {
               count++;
             }
             real n = 0;
-            while (isdigit(c) && width) {
+            while (isDigit(c) && width) {
               n = n * 10 + (c - '0');
               width--;
               c = getc();
@@ -881,7 +885,7 @@ class Stream : InputStream, OutputStream {
               c = getc();
               count++;
               double frac = 1;
-              while (isdigit(c) && width) {
+              while (isDigit(c) && width) {
                 n = n * 10 + (c - '0');
                 frac *= 10;
                 width--;
@@ -907,7 +911,7 @@ class Stream : InputStream, OutputStream {
                   count++;
                 }
                 real exp = 0;
-                while (isdigit(c) && width) {
+                while (isDigit(c) && width) {
                   exp = exp * 10 + (c - '0');
                   width--;
                   c = getc();
@@ -939,7 +943,7 @@ class Stream : InputStream, OutputStream {
           } break;
 
         case 's': {     // string
-          while (iswhite(c)) {
+          while (isWhite(c)) {
             c = getc();
             count++;
           }
@@ -950,7 +954,7 @@ class Stream : InputStream, OutputStream {
             p = va_arg!(char[]*)(args);
             s = *p;
           }
-          while (!iswhite(c) && c != char.init) {
+          while (!isWhite(c) && c != char.init) {
             if (strlen < s.length) {
               s[strlen] = c;
             } else {
@@ -983,7 +987,7 @@ class Stream : InputStream, OutputStream {
           if (width < 0)
             width = 1;
           else
-            while (iswhite(c)) {
+            while (isWhite(c)) {
             c = getc();
             count++;
           }
@@ -1006,8 +1010,8 @@ class Stream : InputStream, OutputStream {
         default:        // read character as is
           goto nws;
         }
-      } else if (iswhite(fmt[i])) {     // skip whitespace
-        while (iswhite(c))
+      } else if (isWhite(fmt[i])) {     // skip whitespace
+        while (isWhite(c))
           c = getc();
         i++;
       } else {  // read character as is
@@ -1491,7 +1495,7 @@ class BufferedStream : FilterStream {
     assert(bufferLen <= buffer.length);
   }
 
-  const size_t DefaultBufferSize = 8192;
+  enum size_t DefaultBufferSize = 8192;
 
   /***
    * Create a buffered stream for the stream source with the buffer size
@@ -2188,7 +2192,7 @@ enum BOM {
         UTF32BE,        /// UTF-32 Big Endian
 }
 
-private const int NBOMS = 5;
+private enum int NBOMS = 5;
 immutable Endian[NBOMS] BOMEndian =
 [ std.system.endian,
   Endian.LittleEndian, Endian.BigEndian,
@@ -2934,21 +2938,4 @@ class SliceStream : FilterStream {
     assert (m.size () == 29);
     assert (m.toString() == "HellVrooorld\nBlaho, etcetera.");
   }
-}
-
-// helper functions
-private bool iswhite(char c) {
-  return c == ' ' || c == '\t' || c == '\r' || c == '\n';
-}
-
-private bool isdigit(char c) {
-  return c >= '0' && c <= '9';
-}
-
-private bool isoctdigit(char c) {
-  return c >= '0' && c <= '7';
-}
-
-private bool ishexdigit(char c) {
-  return isdigit(c) || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
 }
