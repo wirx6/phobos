@@ -1228,6 +1228,11 @@ T toImpl(T, S)(S value)
     static if (is(Unqual!S == double))
     {
         //alias Unqual!(ElementType!T) Char;
+        version (LDC) // FIXME: workaround for case when this function returns "-nan"
+        {
+            if (isnan(value))
+                return "nan";
+        }
         char[20] buffer;
         int len = sprintf(buffer.ptr, "%g", value);
         return to!T(buffer[0 .. len].dup);
@@ -2978,11 +2983,6 @@ Target parseElement(Target, Source)(ref Source s)
     else
         c = parseEscape(s);
     parseCheck!s('\'');
-    version (LDC) // FIXME: workaround for case when this function returns "-nan"
-    {
-        if (isnan(d))
-            return "nan";
-    }
 
     return c;
 }
