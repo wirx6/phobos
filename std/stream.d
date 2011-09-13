@@ -1158,8 +1158,12 @@ class Stream : InputStream, OutputStream {
       } else
           throw new Exception("unsupported platform");
     }
-    writeString(p[0 .. count]);
-    return count;
+    version (LDC_X86_64) {
+
+    } else {
+        writeString(p[0 .. count]);
+        return count;
+    }
   }
 
   // writes data to stream using printf() syntax,
