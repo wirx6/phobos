@@ -2473,7 +2473,10 @@ unittest
         assert(to!Float("123.") == Literal!Float(123.));
         assert(to!Float(".456") == Literal!Float(.456));
 
-        assert(to!Float("1.23456E+2") == Literal!Float(1.23456E+2));
+        version (LDC)
+            assert(feq(to!Float("1.23456E+2"), Literal!Float(1.23456E+2)));
+        else
+            assert(to!Float("1.23456E+2") == Literal!Float(1.23456E+2));
 
         assert(to!Float("0") == 0.0);
         assert(to!Float("-0") == -0.0);
