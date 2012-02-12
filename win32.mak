@@ -108,7 +108,7 @@ SRCS_11 = std\stdio.d std\stdiobase.d \
 SRCS_12 = std\array.d std\functional.d std\range.d \
 	std\path.d std\outbuffer.d std\utf.d
 
-SRCS_2 = std\math.d std\complex.d std\numeric.d std\bigint.d \
+SRCS_2 = std\csv.d std\math.d std\complex.d std\numeric.d std\bigint.d \
     std\dateparse.d std\date.d std\datetime.d \
     std\metastrings.d std\bitmanip.d std\typecons.d \
     std\uni.d std\base64.d std\md5.d std\ctype.d std\ascii.d \
@@ -168,6 +168,7 @@ DOCS=	$(DOC)\object.html \
 	$(DOC)\core_exception.html \
 	$(DOC)\core_memory.html \
 	$(DOC)\core_runtime.html \
+	$(DOC)\core_simd.html \
 	$(DOC)\core_time.html \
 	$(DOC)\core_thread.html \
 	$(DOC)\core_vararg.html \
@@ -194,6 +195,7 @@ DOCS=	$(DOC)\object.html \
 	$(DOC)\std_cpuid.html \
 	$(DOC)\std_cstream.html \
 	$(DOC)\std_ctype.html \
+	$(DOC)\std_csv.html \
 	$(DOC)\std_date.html \
 	$(DOC)\std_datetime.html \
 	$(DOC)\std_demangle.html \
@@ -254,13 +256,16 @@ DOCS=	$(DOC)\object.html \
 	$(DOC)\std_c_time.html \
 	$(DOC)\std_c_wcharh.html \
 	$(DOC)\std_net_isemail.html \
+	$(DOC)\etc_c_curl.html \
+	$(DOC)\etc_c_sqlite3.html \
+	$(DOC)\etc_c_zlib.html \
 	$(DOC)\phobos.html
 
 SRC=	unittest.d crc32.d index.d
 
 SRC_STD= std\zlib.d std\zip.d std\stdint.d std\container.d std\conv.d std\utf.d std\uri.d \
 	std\math.d std\string.d std\path.d std\date.d std\datetime.d \
-	std\ctype.d std\file.d std\compiler.d std\system.d \
+	std\ctype.d std\csv.d std\file.d std\compiler.d std\system.d \
 	std\outbuffer.d std\md5.d std\base64.d \
 	std\dateparse.d std\mmfile.d \
 	std\syserror.d \
@@ -277,7 +282,7 @@ SRC_STD= std\zlib.d std\zip.d std\stdint.d std\container.d std\conv.d std\utf.d 
 	std\regex.d std\datebase.d \
 	std\__fileinit.d std\gregorian.d std\exception.d std\ascii.d
 
-SRC_STD_NET= std\net\isemail.d
+SRC_STD_NET= std\net\isemail.d std\net\curl.d
 
 SRC_STD_C= std\c\process.d std\c\stdlib.d std\c\time.d std\c\stdio.d \
 	std\c\math.d std\c\stdarg.d std\c\stddef.d std\c\fenv.d std\c\string.d \
@@ -425,6 +430,9 @@ cstream.obj : std\cstream.d
 
 ctype.obj : std\ctype.d
 	$(DMD) -c $(DFLAGS) std\ctype.d
+
+csv.obj : std\csv.d
+	$(DMD) -c $(DFLAGS) std\csv.d
 
 date.obj : std\dateparse.d std\date.d
 	$(DMD) -c $(DFLAGS) std\date.d
@@ -658,6 +666,9 @@ $(DOC)\core_memory.html : $(STDDOC) $(DRUNTIME)\src\core\memory.d
 $(DOC)\core_runtime.html : $(STDDOC) $(DRUNTIME)\src\core\runtime.d
 	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\core_runtime.html $(STDDOC) $(DRUNTIME)\src\core\runtime.d -I$(DRUNTIME)\src\
 
+$(DOC)\core_simd.html : $(STDDOC) $(DRUNTIME)\src\core\simd.d
+	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\core_simd.html $(STDDOC) $(DRUNTIME)\src\core\simd.d -I$(DRUNTIME)\src\
+
 $(DOC)\core_time.html : $(STDDOC) $(DRUNTIME)\src\core\time.d
 	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\core_time.html $(STDDOC) $(DRUNTIME)\src\core\time.d -I$(DRUNTIME)\src\
 
@@ -735,6 +746,9 @@ $(DOC)\std_cstream.html : $(STDDOC) std\cstream.d
 
 $(DOC)\std_ctype.html : $(STDDOC) std\ctype.d
 	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_ctype.html $(STDDOC) std\ctype.d
+
+$(DOC)\std_csv.html : $(STDDOC) std\csv.d
+	$(DMD) -c -o- $(DFLAGS) -Df$(DOC)\std_csv.html $(STDDOC) std\csv.d
 
 $(DOC)\std_date.html : $(STDDOC) std\date.d
 	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_date.html $(STDDOC) std\date.d
@@ -915,6 +929,15 @@ $(DOC)\std_c_wcharh.html : $(STDDOC) std\c\wcharh.d
 
 $(DOC)\std_net_isemail.html : $(STDDOC) std\net\isemail.d
 	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_net_isemail.html $(STDDOC) std\net\isemail.d
+
+$(DOC)\etc_c_curl.html : $(STDDOC) etc\c\curl.d
+	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\etc_c_curl.html $(STDDOC) etc\c\curl.d
+
+$(DOC)\etc_c_sqlite3.html : $(STDDOC) etc\c\sqlite3.d
+	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\etc_c_sqlite3.html $(STDDOC) etc\c\sqlite3.d
+
+$(DOC)\etc_c_zlib.html : $(STDDOC) etc\c\zlib.d
+	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\etc_c_zlib.html $(STDDOC) etc\c\zlib.d
 
 
 ######################################################
