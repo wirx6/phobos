@@ -2569,7 +2569,7 @@ unittest
 // Unittest for bug 6160
 unittest
 {
-    assert(1000_000_000e50L == to!real("1000_000_000_e50"));        // 1e59
+    assert(1000_000_000e44L == to!real("1000_000_000_e44"));        // 1e43
     assert(0x1000_000_000_p10 == to!real("0x1000_000_000_p10"));    // 7.03687e+13
 }
 
