@@ -2792,12 +2792,6 @@ import core.stdc.errno, core.stdc.stdlib;
 
 deprecated:
 
-version(Posix)
-{
-    private import core.sys.posix.pwd;
-    private import core.exception : onOutOfMemoryError;
-}
-
 version(Windows)
 {
 
