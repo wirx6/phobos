@@ -4469,18 +4469,17 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                 if (comma) putc(',');
                 comma = true;
                 void *pkey = &fakevalue;
-                version (X86)
-                    pkey -= long.sizeof;
-                else version(X86_64)
+                version (D_LP64)
                     pkey -= 16;
-                else static assert(false, "unsupported platform");
+                else
+                    pkey -= 8;
 
                 // the key comes before the value
                 auto keysize = keyti.tsize;
-                version (X86)
-                    auto keysizet = (keysize + size_t.sizeof - 1) & ~(size_t.sizeof - 1);
-                else
+                version (D_LP64)
                     auto keysizet = (keysize + 15) & ~(15);
+                else
+                    auto keysizet = (keysize + size_t.sizeof - 1) & ~(size_t.sizeof - 1);
 
                 void* pvalue = pkey + keysizet;
 
