@@ -2197,6 +2197,8 @@ private:
             DIVBYZERO_MASK = 0x040,
             INVALID_MASK   = 0x200
         }
+    } else version (ARM) {
+        // TODO: Fill this in for VFP.
     } else
         static assert(0, "Not implemented");
 private:
@@ -2225,6 +2227,8 @@ private:
                return retval;
             */
            assert(0, "Not yet supported");
+        } else version (ARM) {
+            assert(false, "Not yet supported.");
         } else
             assert(0, "Not yet supported");
     }
@@ -2245,6 +2249,7 @@ private:
         }
     }
 public:
+     version (X86_Any) { // TODO: Lift this version condition when we support !x86.
      /// The result cannot be represented exactly, so rounding occured.
      /// (example: x = sin(0.1); )
      @property bool inexact() { return (flags & INEXACT_MASK) != 0; }
@@ -2256,6 +2261,7 @@ public:
      @property bool divByZero() { return (flags & DIVBYZERO_MASK) != 0; }
      /// A machine NaN was generated. (example: x = real.infinity * 0.0; )
      @property bool invalid() { return (flags & INVALID_MASK) != 0; }
+     }
 }
 
 
