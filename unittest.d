@@ -14,10 +14,8 @@
  *          http://www.boost.org/LICENSE_1_0.txt)
  */
 public import std.base64;
-public import std.bind;
 public import std.compiler;
 public import std.concurrency;
-public import std.contracts;
 public import std.conv;
 public import std.cpuid;
 public import std.cstream;
@@ -27,7 +25,6 @@ public import std.demangle;
 public import std.file;
 public import std.format;
 public import std.getopt;
-public import std.loader;
 public import std.math;
 public import std.mathspecial;
 public import std.md5;
@@ -55,9 +52,12 @@ public import std.typetuple;
 public import std.uni;
 public import std.uri;
 public import std.utf;
+public import std.uuid;
 public import std.variant;
 public import std.zip;
 public import std.zlib;
+public import std.net.isemail;
+public import std.net.curl;
 
 int main(char[][] args)
 {
@@ -122,7 +122,11 @@ version (all)
     std.signals.linkin();
 
     writefln(std.cpuid.toString());
+
+    bool isEmail = std.net.isemail.isEmail("abc");
+    auto http = std.net.curl.HTTP("dlang.org");
+    auto uuid = randomUUID();
 }
-    printf("Success!\n");
+    puts("Success!");
     return 0;
 }
