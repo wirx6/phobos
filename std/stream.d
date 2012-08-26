@@ -1174,11 +1174,16 @@ class Stream : InputStream, OutputStream {
   // returns number of bytes written
   version (X86_64)
   size_t printf(const(char)[] format, ...) {
-    va_list ap;
-    va_start(ap, __va_argsave);
-    auto result = vprintf(format, ap);
-    va_end(ap);
-    return result;
+    version (LDC)
+      throw new Exception("unsupported platform");
+    else
+    {
+      va_list ap;
+      va_start(ap, __va_argsave);
+      auto result = vprintf(format, ap);
+      va_end(ap);
+      return result;
+    }
   }
   else
   size_t printf(const(char)[] format, ...) {
