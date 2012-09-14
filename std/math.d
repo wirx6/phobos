@@ -1,4 +1,4 @@
-﻿// Written in the D programming language.
+// Written in the D programming language.
 
 /**
  * Elementary mathematical functions
@@ -1002,7 +1002,7 @@ real exp(real x) @trusted pure nothrow
         // and exp2 are so similar).
         return exp2(LOG2E*x);
     } else {
-        return core.stdc.math.exp(x);
+        return core.stdc.math.expl(x);
     }
 }
 /// ditto
@@ -1168,7 +1168,7 @@ L_largenegative:
             ret;
         }
     } else {
-        return core.stdc.math.expm1(x);
+        return core.stdc.math.expm1l(x);
     }
 }
 
@@ -1350,7 +1350,7 @@ L_was_nan:
             ret;
         }
     } else {
-        return core.stdc.math.exp2(x);
+        return core.stdc.math.exp2l(x);
     }
 }
 

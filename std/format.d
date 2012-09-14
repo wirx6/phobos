@@ -33,7 +33,7 @@ version(unittest) {
 version (X86) version = SimpleVaargs;
 version (LDC) version = SimpleVaargs;
 
-version (Windows) version (DigitalMars)
+version (Win32) version (DigitalMars)
 {
     version = DigitalMarsC;
 }
@@ -183,7 +183,7 @@ $(I FormatChar):
     values $(D nan) and $(D infinity)).  Ignore if there's a $(I
     Precision).))
 
-    $(TR $(TD $(B ' ')) $(TD integral ($(B 'd'))) $(TD Prefix positive
+    $(TR $(TD $(B ' ')) $(TD numeric)) $(TD Prefix positive
     numbers in a signed conversion with a space.)))
 
     <dt>$(I Width)
@@ -509,6 +509,12 @@ uint formattedWrite(Writer, Char, A...)(Writer w, in Char[] fmt, A args)
 /**
    Reads characters from input range $(D r), converts them according
    to $(D fmt), and writes them to $(D args).
+
+   Returns:
+
+   On success, the function returns the number of variables filled. This count
+   can match the expected number of readings or fewer, even zero, if a
+   matching failure happens.
 
    Example:
 ----
@@ -4653,6 +4659,8 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
             //doFormat(putc, (&valti)[0 .. 1], p);
             version(SimpleVaargs)
                 argptr = p;
+            else version(Win64)
+                argptr = p;
             else version(X86_64)
             {
                 __va_list va;
@@ -4701,7 +4709,9 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                 void* pvalue = pkey + keysizet;
 
                 //doFormat(putc, (&keyti)[0..1], pkey);
-                version (SimpleVaargs) 
+                version (SimpleVaargs)
+                    argptr = pkey;
+                else version (Win64)
                     argptr = pkey;
                 else version (X86_64)
                 {   __va_list va;
@@ -4716,7 +4726,9 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
 
                 putc(':');
                 //doFormat(putc, (&valti)[0..1], pvalue);
-                version (SimpleVaargs) 
+                version (SimpleVaargs)
+                    argptr = pvalue;
+                else version (Win64)
                     argptr = pvalue;
                 else version (X86_64)
                 {   __va_list va2;
@@ -4871,6 +4883,8 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
             case Mangle.Tsarray:
                 version (SimpleVaargs)
                     putArray(argptr, (cast(TypeInfo_StaticArray)ti).len, cast()(cast(TypeInfo_StaticArray)ti).next);
+                else version (Win64)
+                    putArray(argptr, (cast(TypeInfo_StaticArray)ti).len, cast()(cast(TypeInfo_StaticArray)ti).next);
                 else
                     putArray((cast(__va_list*)argptr).stack_args, (cast(TypeInfo_StaticArray)ti).len, cast()(cast(TypeInfo_StaticArray)ti).next);
                 return;
@@ -4977,6 +4991,11 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                         argptr = cast(void*)(cast(size_t)p + ((tis.tsize() + size_t.sizeof - 1) & ~(size_t.sizeof - 1)));
                         s = tis.xtoString(p);
                     }
+                }
+                else version(Win64)
+                {
+                    s = tis.xtoString(argptr);
+                    argptr += (tis.tsize() + 3) & ~3;
                 }
                 else version (X86_64)
                 {
