@@ -115,15 +115,18 @@ SRC_STD_3= std\csv.d std\math.d std\complex.d std\numeric.d std\bigint.d \
     std\datetime.d \
     std\metastrings.d std\bitmanip.d std\typecons.d \
     std\uni.d std\base64.d std\md5.d std\ctype.d std\ascii.d \
-    std\demangle.d std\uri.d std\mmfile.d std\getopt.d \
-    std\signals.d std\typetuple.d std\traits.d \
+    std\demangle.d std\uri.d std\mmfile.d std\getopt.d
+
+SRC_STD_3a= std\signals.d std\typetuple.d std\traits.d \
     std\encoding.d std\xml.d \
     std\random.d std\regexp.d \
     std\exception.d \
     std\compiler.d std\cpuid.d \
     std\system.d std\concurrency.d
 
-SRC_STD_4= std\uuid.d
+#can't place SRC_STD_DIGEST in SRC_STD_REST because of out-of-memory issues
+SRC_STD_DIGEST= std\digest\crc.d std\digest\sha.d std\digest\md.d std\digest\digest.d
+SRC_STD_4= std\uuid.d $(SRC_STD_DIGEST)
 
 SRC_STD_5_HEAVY= std\algorithm.d
 
@@ -140,7 +143,7 @@ SRC_STD_REST= std\variant.d \
 	std\process.d
 
 SRC_STD_ALL= $(SRC_STD_1_HEAVY) $(SRC_STD_2_HEAVY) $(SRC_STD_2a_HEAVY) \
-	$(SRC_STD_3) $(SRC_STD_4) \
+	$(SRC_STD_3) $(SRC_STD_3a) $(SRC_STD_4) \
 	$(SRC_STD_5_HEAVY) $(SRC_STD_REST)
 
 SRC=	unittest.d crc32.d index.d
@@ -279,6 +282,10 @@ DOCS=	$(DOC)\object.html \
 	$(DOC)\std_container.html \
 	$(DOC)\std_conv.html \
 	$(DOC)\std_cpuid.html \
+	$(DOC)\std_digest_crc.html \
+	$(DOC)\std_digest_sha.html \
+	$(DOC)\std_digest_md.html \
+	$(DOC)\std_digest_digest.html \
 	$(DOC)\std_cstream.html \
 	$(DOC)\std_ctype.html \
 	$(DOC)\std_csv.html \
@@ -361,6 +368,7 @@ unittest : $(LIB)
 	$(DMD) $(UDFLAGS) -L/co -c -unittest -ofunittest2.obj $(SRC_STD_2_HEAVY)
 	$(DMD) $(UDFLAGS) -L/co -c -unittest -ofunittest2a.obj $(SRC_STD_2a_HEAVY)
 	$(DMD) $(UDFLAGS) -L/co -c -unittest -ofunittest3.obj $(SRC_STD_3)
+	$(DMD) $(UDFLAGS) -L/co -c -unittest -ofunittest3a.obj $(SRC_STD_3a)
 	$(DMD) $(UDFLAGS) -L/co -c -unittest -ofunittest4.obj $(SRC_STD_4)
 	$(DMD) $(UDFLAGS) -L/co -c -unittest -ofunittest5.obj $(SRC_STD_5_HEAVY)
 	$(DMD) $(UDFLAGS) -L/co -c -unittest -ofunittest6.obj $(SRC_STD_REST)
@@ -636,6 +644,18 @@ $(DOC)\std_net_isemail.html : $(STDDOC) std\net\isemail.d
 $(DOC)\std_net_curl.html : $(STDDOC) std\net\curl.d
 	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_net_curl.html $(STDDOC) std\net\curl.d
 
+$(DOC)\std_digest_crc.html : $(STDDOC) std\digest\crc.d
+	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_digest_crc.html $(STDDOC) std\digest\crc.d
+
+$(DOC)\std_digest_sha.html : $(STDDOC) std\digest\sha.d
+	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_digest_sha.html $(STDDOC) std\digest\sha.d
+
+$(DOC)\std_digest_md.html : $(STDDOC) std\digest\md.d
+	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_digest_md.html $(STDDOC) std\digest\md.d
+
+$(DOC)\std_digest_digest.html : $(STDDOC) std\digest\digest.d
+	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_digest_digest.html $(STDDOC) std\digest\digest.d
+
 $(DOC)\std_windows_charset.html : $(STDDOC) std\windows\charset.d
 	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_windows_charset.html $(STDDOC) std\windows\charset.d
 
@@ -690,7 +710,7 @@ $(DOC)\etc_c_zlib.html : $(STDDOC) etc\c\zlib.d
 zip : win32.mak win64.mak posix.mak $(STDDOC) $(SRC) \
 	$(SRC_STD) $(SRC_STD_C) $(SRC_STD_WIN) \
 	$(SRC_STD_C_WIN) $(SRC_STD_C_LINUX) $(SRC_STD_C_OSX) $(SRC_STD_C_FREEBSD) \
-	$(SRC_ETC) $(SRC_ETC_C) $(SRC_ZLIB) $(SRC_STD_NET) \
+	$(SRC_ETC) $(SRC_ETC_C) $(SRC_ZLIB) $(SRC_STD_NET) $(SRC_STD_DIGEST)\
 	$(SRC_STD_INTERNAL) $(SRC_STD_INTERNAL_MATH) $(SRC_STD_INTERNAL_WINDOWS)
 	del phobos.zip
 	zip32 -u phobos win32.mak win64.mak posix.mak $(STDDOC)
@@ -708,6 +728,7 @@ zip : win32.mak win64.mak posix.mak $(STDDOC) $(SRC) \
 	zip32 -u phobos $(SRC_ETC) $(SRC_ETC_C)
 	zip32 -u phobos $(SRC_ZLIB)
 	zip32 -u phobos $(SRC_STD_NET)
+	zip32 -u phobos $(SRC_STD_DIGEST)
 
 clean:
 	cd etc\c\zlib
@@ -745,6 +766,7 @@ install:
 	$(CP) $(SRC) $(DIR)\src\phobos\ 
 	$(CP) $(SRC_STD) $(DIR)\src\phobos\std\ 
 	$(CP) $(SRC_STD_NET) $(DIR)\src\phobos\std\net\ 
+	$(CP) $(SRC_STD_DIGEST) $(DIR)\src\phobos\std\digest\ 
 	$(CP) $(SRC_STD_C) $(DIR)\src\phobos\std\c\ 
 	$(CP) $(SRC_STD_WIN) $(DIR)\src\phobos\std\windows\ 
 	$(CP) $(SRC_STD_C_WIN) $(DIR)\src\phobos\std\c\windows\ 
