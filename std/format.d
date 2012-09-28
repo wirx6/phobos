@@ -4611,8 +4611,12 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                 while (1)
                 {
                     sl = fbuf.length;
-                    auto n = snprintf(fbuf.ptr, sl, format.ptr, field_width,
-                            precision, v);
+                    version (Win64)
+                        auto n = snprintf(fbuf.ptr, sl, format.ptr, field_width,
+                                precision, cast(double)v);
+                    else
+                        auto n = snprintf(fbuf.ptr, sl, format.ptr, field_width,
+                                precision, v);
                     //printf("format = '%s', n = %d\n", cast(char*)format, n);
                     if (n >= 0 && n < sl)
                     {        sl = n;
@@ -4663,15 +4667,31 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                 argptr = p;
             else version(X86_64)
             {
-                __va_list va;
-                va.stack_args = p;
-                argptr = &va;
+                void* q = void;
+
+                if (tsize > 8 && m != Mangle.Tsarray)
+                {   q = p;
+                    argptr = &q;
+                }
+                else
+                argptr = p;
+                formatArg('s');
+                p += tsize;
             }
             else
-                static assert(false, "unsupported platform");
-            formatArg('s');
-
-            p += tsize;
+            {
+                version (X86)
+                    argptr = p;
+                else version(X86_64)
+                {   __va_list va;
+                    va.stack_args = p;
+                    argptr = &va;
+                }
+                else
+                    static assert(false, "unsupported platform");
+                formatArg('s');
+                p += tsize;
+            }
             if (len > 0) putc(',');
           }
           m = mSave;
@@ -4709,10 +4729,19 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                 void* pvalue = pkey + keysizet;
 
                 //doFormat(putc, (&keyti)[0..1], pkey);
+                m = getMan(keyti);
                 version (SimpleVaargs)
                     argptr = pkey;
                 else version (Win64)
-                    argptr = pkey;
+                {
+                    void* q = void;
+                    if (keysize > 8 && m != Mangle.Tsarray)
+                    {   q = pkey;
+                        argptr = &q;
+                    }
+                    else
+                        argptr = pkey;
+                }
                 else version (X86_64)
                 {   __va_list va;
                     va.stack_args = pkey;
@@ -4721,15 +4750,24 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                 else static assert(false, "unsupported platform");
 
                 ti = keyti;
-                m = getMan(keyti);
                 formatArg('s');
 
                 putc(':');
                 //doFormat(putc, (&valti)[0..1], pvalue);
+                m = getMan(valti);
                 version (SimpleVaargs)
                     argptr = pvalue;
                 else version (Win64)
-                    argptr = pvalue;
+                {
+                    void* q2 = void;
+                    auto valuesize = valti.tsize();
+                    if (valuesize > 8 && m != Mangle.Tsarray)
+                    {   q2 = pvalue;
+                        argptr = &q2;
+                    }
+                    else
+                        argptr = pvalue;
+                }
                 else version (X86_64)
                 {   __va_list va2;
                     va2.stack_args = pvalue;
@@ -4738,7 +4776,6 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                 else static assert(false, "unsupported platform");
 
                 ti = valti;
-                m = getMan(valti);
                 formatArg('s');
             }
             m = mSave;
@@ -4994,8 +5031,11 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                 }
                 else version(Win64)
                 {
-                    s = tis.xtoString(argptr);
-                    argptr += (tis.tsize() + 3) & ~3;
+                    void* p = argptr;
+                    if (tis.tsize() > 8)
+                        p = *cast(void**)p;
+                    s = tis.xtoString(p);
+                    argptr += size_t.sizeof;
                 }
                 else version (X86_64)
                 {

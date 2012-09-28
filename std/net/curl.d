@@ -171,8 +171,10 @@ version(unittest)
     // Run unit test with the PHOBOS_TEST_ALLOW_NET=1 set in order to
     // allow net traffic
     import std.stdio;
-    import std.c.stdlib;
     import std.range;
+    import std.process : environment;
+    import std.file : tempDir;
+    import std.path : buildPath;
     enum testUrl1 = "http://d-lang.appspot.com/testUrl1";
     enum testUrl2 = "http://d-lang.appspot.com/testUrl2";
     enum testUrl3 = "ftp://ftp.digitalmars.com/sieve.ds";
@@ -266,8 +268,8 @@ void download(Conn = AutoProtocol)(const(char)[] url, string saveToPath, Conn co
 unittest
 {
     if (!netAllowed()) return;
-    download("ftp.digitalmars.com/sieve.ds", "/tmp/downloaded-ftp-file");
-    download("d-lang.appspot.com/testUrl1", "/tmp/downloaded-http-file");
+    download("ftp.digitalmars.com/sieve.ds", buildPath(tempDir(), "downloaded-ftp-file"));
+    download("d-lang.appspot.com/testUrl1", buildPath(tempDir(), "downloaded-http-file"));
 }
 
 /** Upload file from local files system using the HTTP or FTP protocol.
@@ -322,8 +324,8 @@ void upload(Conn = AutoProtocol)(string loadFromPath, const(char)[] url, Conn co
 unittest
 {
     if (!netAllowed()) return;
-    //    upload("/tmp/downloaded-ftp-file", "ftp.digitalmars.com/sieve.ds");
-    upload("/tmp/downloaded-http-file", "d-lang.appspot.com/testUrl2");
+    //    upload(buildPath(tempDir(), "downloaded-ftp-file"), "ftp.digitalmars.com/sieve.ds");
+    upload(buildPath(tempDir(), "downloaded-http-file"), "d-lang.appspot.com/testUrl2");
 }
 
 /** HTTP/FTP get content.
@@ -418,9 +420,22 @@ if (is(T == char) || is(T == ubyte))
 unittest
 {
     if (!netAllowed()) return;
-    auto res = post(testUrl2, "Hello world");
-    assert(res == "Hello world",
-           "put!HTTP() returns unexpected content " ~ res);
+
+    {
+        string data = "Hello world";
+        auto res = post(testUrl2, data);
+        assert(res == data,
+               "put!HTTP() returns unexpected content " ~ res);
+    }
+
+    {
+        ubyte[] data;
+        foreach (n; 0..256)
+            data ~= cast(ubyte)n;
+        auto res = post!ubyte(testUrl2, data);
+        assert(res == data,
+               "put!HTTP() with binary data returns unexpected content (" ~ text(res.length) ~ " bytes)");
+    }
 }
 
 
@@ -1544,6 +1559,15 @@ private mixin template Protocol()
     /// Set timeout for activity on connection.
     @property void dataTimeout(Duration d)
     {
+        p.curl.set(CurlOption.low_speed_limit, 1);
+        p.curl.set(CurlOption.low_speed_time, d.total!"seconds"());
+    }
+
+    /** Set maximum time an operation is allowed to take.
+        This includes dns resolution, connecting, data transfer, etc.
+     */
+    @property void operationTimeout(Duration d)
+    {
         p.curl.set(CurlOption.timeout_ms, d.total!"msecs"());
     }
 
@@ -1890,14 +1914,15 @@ private bool decodeLineInto(Terminator, Char = char)(ref const(ubyte)[] basesrc,
   *
   * // Put with data senders
   * auto msg = "Hello world";
+  * http.contentLength = msg.length;
   * http.onSend = (void[] data)
   * {
   *     auto m = cast(void[])msg;
-  *     size_t length = m.length > data.length ? data.length : m.length;
-  *     if (length == 0) return 0;
-  *     data[0..length] = m[0..length];
-  *     msg = msg[length..$];
-  *     return length;
+  *     size_t len = m.length > data.length ? data.length : m.length;
+  *     if (len == 0) return len;
+  *     data[0..len] = m[0..len];
+  *     msg = msg[len..$];
+  *     return len;
   * };
   * http.perform();
   *
@@ -2089,6 +2114,11 @@ struct HTTP
 
         /// Set timeout for activity on connection.
         @property void dataTimeout(Duration d);
+
+        /** Set maximum time an operation is allowed to take.
+            This includes dns resolution, connecting, data transfer, etc.
+          */
+        @property void operationTimeout(Duration d);
 
         /// Set timeout for connecting.
         @property void connectTimeout(Duration d);
@@ -2384,7 +2414,7 @@ struct HTTP
       */
     @property void postData(const(void)[] data)
     {
-        _postData(cast(void*)data.ptr, "application/octet-stream");
+        _postData(data, "application/octet-stream");
     }
 
     /** Specifying data to post when not using the onSend callback.
@@ -2403,19 +2433,34 @@ struct HTTP
       */
     @property void postData(const(char)[] data)
     {
-        _postData(cast(void*)data.ptr, "text/plain");
+        _postData(data, "text/plain");
     }
 
     // Helper for postData property
-    private void _postData(void* data, string contentType)
+    private void _postData(const(void)[] data, string contentType)
     {
         // cannot use callback when specifying data directly so it is disabled here.
-        // here.
         p.curl.clear(CurlOption.readfunction);
         addRequestHeader("Content-Type", contentType);
-        p.curl.set(CurlOption.postfields, data);
+        p.curl.set(CurlOption.postfields, cast(void*)data.ptr);
+        p.curl.set(CurlOption.postfieldsize, data.length);
         if (method == Method.undefined)
             method = Method.post;
+    }
+
+    unittest
+    {
+        if (!netAllowed()) return;
+        ubyte[] data;
+        foreach (n; 0..256)
+            data ~= cast(ubyte)n;
+        auto http = HTTP(testUrl2);
+        http.postData = data;
+        ubyte[] result;
+        http.onReceive = (ubyte[] data) { result ~= data; return data.length; };
+        http.perform();
+        assert(data == result,
+               "HTTP POST with binary data returns unexpected content (" ~ text(result.length) ~ " bytes)");
     }
 
     /**
@@ -2605,7 +2650,6 @@ struct HTTP
 
 } // HTTP
 
-
 /**
    FTP client functionality.
 
@@ -2728,6 +2772,11 @@ struct FTP
 
         /// Set timeout for activity on connection.
         @property void dataTimeout(Duration d);
+
+        /** Set maximum time an operation is allowed to take.
+            This includes dns resolution, connecting, data transfer, etc.
+          */
+        @property void operationTimeout(Duration d);
 
         /// Set timeout for connecting.
         @property void connectTimeout(Duration d);
@@ -3012,6 +3061,11 @@ struct SMTP
 
         /// Set timeout for activity on connection.
         @property void dataTimeout(Duration d);
+
+        /** Set maximum time an operation is allowed to take.
+            This includes dns resolution, connecting, data transfer, etc.
+          */
+        @property void operationTimeout(Duration d);
 
         /// Set timeout for connecting.
         @property void connectTimeout(Duration d);
@@ -4079,5 +4133,5 @@ private static void _spawnAsync(Conn, Unit, Terminator = void)()
 
 version (unittest) private auto netAllowed()
 {
-      return getenv("PHOBOS_TEST_ALLOW_NET") != null;
+    return environment.get("PHOBOS_TEST_ALLOW_NET") != null;
 }
