@@ -327,9 +327,10 @@ class OutBuffer
             }
         }
     }
-    version (Win64)
+    else version (Win64)
     {
         void printf(string format, ...)
+        {
             va_list ap;
             ap = cast(va_list)&format;
             ap += format.sizeof;
