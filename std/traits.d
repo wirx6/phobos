@@ -216,7 +216,7 @@ unittest
  */
 template fullyQualifiedName(alias T)
 {
-    static if (is(typeof(__traits(parent, T))))
+    static if ((__traits(compiles, __traits(parent, T))))
     {
         static if (T.stringof.length >= 9 && T.stringof[0..8] == "package ")
         {
@@ -252,11 +252,22 @@ template fullyQualifiedName(alias T)
     }
 }
 
+version(unittest)
+{
+    struct Outer
+    {
+        struct Inner
+        {
+        }
+    }
+}
+
 unittest
 {
     import etc.c.curl;
     static assert(fullyQualifiedName!(fullyQualifiedName) == "std.traits.fullyQualifiedName");
     static assert(fullyQualifiedName!(curl_httppost) == "etc.c.curl.curl_httppost");
+    static assert(fullyQualifiedName!(Outer.Inner) == "std.traits.Outer.Inner");
 }
 
 /***
@@ -2079,6 +2090,7 @@ unittest
 
     struct S1 { this(this) {} }
     static assert( hasElaborateCopyConstructor!S1);
+    static assert( hasElaborateCopyConstructor!(immutable(S1)));
 
     struct S2 { uint num; }
     struct S3 { uint num; S1 s; }
@@ -2091,7 +2103,7 @@ unittest
 
 /**
    True if $(D S) or any type directly embedded in the representation of $(D S)
-   defines an elaborate assignmentq. Elaborate assignments are introduced by
+   defines an elaborate assignment. Elaborate assignments are introduced by
    defining $(D opAssign(typeof(this))) or $(D opAssign(ref typeof(this)))
    for a $(D struct). (Non-struct types never have elaborate assignments.)
  */
@@ -2115,6 +2127,7 @@ unittest
 
     struct S  { void opAssign(S) {} }
     static assert( hasElaborateAssign!S);
+    static assert(!hasElaborateAssign!(const(S)));
 
     struct S1 { void opAssign(ref S1) {} }
     struct S2 { void opAssign(S1) {} }
@@ -2957,8 +2970,7 @@ template isAssignable(Lhs, Rhs)
 {
     enum bool isAssignable = is(typeof({
         Lhs l = void;
-        Rhs r = void;
-        l = r;
+        void f(Rhs r) { l = r; }
         return l;
     }));
 }
@@ -2971,8 +2983,27 @@ unittest
     static assert(!isAssignable!(int, long));
     static assert(!isAssignable!(string, char[]));
 
+    static assert(!isAssignable!(immutable(int), int));
+    static assert( isAssignable!(int, immutable(int)));
+
     struct S { @disable this(); this(int n){} }
     static assert( isAssignable!(S, S));
+
+    struct S2 { this(int n){} }
+    static assert( isAssignable!(S2, S2));
+    static assert(!isAssignable!(S2, int));
+
+    struct S3 { @disable void opAssign(); }
+    static assert(!isAssignable!(S3, S3));
+
+    struct S4 { void opAssign(int); }
+    static assert( isAssignable!(S4, int));
+    static assert( isAssignable!(S4, immutable(int)));
+
+    struct S5 { @disable this(); @disable this(this); }
+    struct S6 { void opAssign(in ref S5); }
+    static assert( isAssignable!(S6, S5));
+    static assert( isAssignable!(S6, immutable(S5)));
 }
 
 
@@ -4359,22 +4390,32 @@ static assert(is(Unqual!(shared(const int)) == int));
  */
 template Unqual(T)
 {
-    version (none) // Error: recursive alias declaration @@@BUG1308@@@
+    static if (!isAssociativeArray!T)
     {
-             static if (is(T U ==     const U)) alias Unqual!U Unqual;
-        else static if (is(T U == immutable U)) alias Unqual!U Unqual;
-        else static if (is(T U ==     inout U)) alias Unqual!U Unqual;
-        else static if (is(T U ==    shared U)) alias Unqual!U Unqual;
-        else                                    alias        T Unqual;
+        version (none) // Error: recursive alias declaration @@@BUG1308@@@
+        {
+                 static if (is(T U ==     const U)) alias Unqual!U Unqual;
+            else static if (is(T U == immutable U)) alias Unqual!U Unqual;
+            else static if (is(T U ==     inout U)) alias Unqual!U Unqual;
+            else static if (is(T U ==    shared U)) alias Unqual!U Unqual;
+            else                                    alias        T Unqual;
+        }
+        else // workaround
+        {
+                 static if (is(T U == shared(const U))) alias U Unqual;
+            else static if (is(T U ==        const U )) alias U Unqual;
+            else static if (is(T U ==    immutable U )) alias U Unqual;
+            else static if (is(T U ==        inout U )) alias U Unqual;
+            else static if (is(T U ==       shared U )) alias U Unqual;
+            else                                        alias T Unqual;
+        }
     }
-    else // workaround
+    else
     {
-             static if (is(T U == shared(const U))) alias U Unqual;
-        else static if (is(T U ==        const U )) alias U Unqual;
-        else static if (is(T U ==    immutable U )) alias U Unqual;
-        else static if (is(T U ==        inout U )) alias U Unqual;
-        else static if (is(T U ==       shared U )) alias U Unqual;
-        else                                        alias T Unqual;
+        //An AA's mutability is defined by its key's mutability.
+        alias KeyType!T K;
+        alias Unqual!(ValueType!T) V;
+        alias V[K] Unqual;
     }
 }
 
@@ -4388,6 +4429,18 @@ unittest
     static assert(is(Unqual!(shared(const int)) == int));
     alias immutable(int[]) ImmIntArr;
     static assert(is(Unqual!(ImmIntArr) == immutable(int)[]));
+}
+unittest //8737 AA
+{
+    alias const(int[int]) AA;
+    alias const(int)[int] BB;
+    alias const(int)[const(int)] CC;
+    static assert(is(Unqual!AA == int[int]));
+    static assert(is(Unqual!BB == int[int]));
+    static assert(is(Unqual!CC == int[const(int)]));
+    alias int[int[int]] DD;
+    static assert(is(KeyType!DD == const(int)[int]));
+    static assert(is(Unqual!(KeyType!DD) == int[int]));
 }
 
 // [For internal use]

@@ -68,6 +68,7 @@ private void parseError(lazy string msg, string fn = __FILE__, size_t ln = __LIN
 
 private void parseCheck(alias source)(dchar c, string fn = __FILE__, size_t ln = __LINE__)
 {
+    if (source.empty) parseError(text("unexpected end of input when expecting", "\"", c, "\""));
     if (source.front != c)
         parseError(text("\"", c, "\" is missing"), fn, ln);
     source.popFront();
@@ -290,6 +291,31 @@ unittest
 {
     assert(to!string(null) == "null");
     assert(text(null) == "null");
+}
+
+// Tests for issue 8729: do NOT skip leading WS
+unittest
+{
+    foreach(T;TypeTuple!(byte, ubyte, short, ushort, int, uint, long, ulong))
+    {
+        assertThrown!ConvException(to!T(" 0"));
+        assertThrown!ConvException(to!T(" 0", 8));
+    }
+    foreach(T;TypeTuple!(float, double, real))
+    {
+        assertThrown!ConvException(to!T(" 0"));
+    }
+
+    assertThrown!ConvException(to!bool  (" true"));
+
+    alias typeof(null) NullType;
+    assertThrown!ConvException(to!NullType(" null"));
+
+    alias int[] ARR;
+    assertThrown!ConvException(to!ARR(" [1]"));
+
+    alias int[int] AA;
+    assertThrown!ConvException(to!AA(" [1:1]"));
 }
 
 /**
@@ -1375,14 +1401,19 @@ T toImpl(T, S)(S value)
     if (isAssociativeArray!S &&
         isAssociativeArray!T && !is(T == enum))
 {
-    alias typeof(T.keys[0]) K2;
-    alias typeof(T.values[0]) V2;
-    T result;
+    //While we are "building" the AA, we need to unqualify, and only re-qualify at the end
+    alias KeyType!T          K2;
+    alias Unqual!(KeyType!T) MK2;   //Mutable key
+    alias ValueType!T          V2;
+    alias Unqual!(ValueType!T) MV2; //Mutable Value
+    Unqual!T result;
     foreach (k1, v1; value)
     {
-        result[to!K2(k1)] = to!V2(v1);
+        K2 k2 = cast(K2) to!MK2(k1); //Call to with mutable type, but store in non mutable
+        MV2 mv2 = to!MV2(v1); //Value must be kept mutable for insertion
+        result[k2] = mv2;
     }
-    return result;
+    return cast(T)result;
 }
 
 unittest
@@ -1393,6 +1424,17 @@ unittest
     a["1"] = 2;
     auto b = to!(double[dstring])(a);
     assert(b["0"d] == 1 && b["1"d] == 2);
+}
+unittest //8709, from doc
+{
+    int[string][double[int[]]] a;
+    auto b = to!(short[wstring][string[double[]]])(a);
+    auto c = to!(immutable(short[immutable(wstring)])[immutable(string[double[]])])(a); //extra difficulty
+}
+unittest //Extra 8709 constness sanity check for non-AA with const-non-AA key/value types
+{
+    int[][int[]] a;
+    auto c = to!(immutable(short[])[immutable(short[])])(a);
 }
 
 private void testIntegralToFloating(Integral, Floating)()
@@ -1711,8 +1753,6 @@ Target parse(Target, Source)(ref Source s)
     else
     {
         // Larger than int types
-        if (s.empty)
-            goto Lerr;
 
         static if (Target.min < 0)
             int sign = 0;
@@ -2131,13 +2171,8 @@ Target parse(Target, Source)(ref Source p)
         return new ConvException(text(msg, " for input \"", p, "\"."), fn, ln);
     }
 
-    for (;;)
-    {
-        enforce(!p.empty, bailOut());
-        if (!std.uni.isWhite(p.front))
-            break;
-        p.popFront();
-    }
+    enforce(!p.empty, bailOut());
+
     char sign = 0;                       /* indicating +                 */
     switch (p.front)
     {
@@ -2589,6 +2624,17 @@ unittest
 {
     assertThrown!ConvException(to!float("INF2"));
 }
+unittest
+{
+    //extra stress testing
+    auto ssOK    = ["1.", "1.1.1", "1.e5", "2e1e", "2a", "2e1_1",
+                    "inf", "-inf", "infa", "-infa", "inf2e2", "-inf2e2"];
+    auto ssKO    = ["", " ", "2e", "2e+", "2e-", "2ee", "2e++1", "2e--1", "2e_1", "+inf"];
+    foreach(s; ssOK)
+        parse!double(s);
+    foreach(s; ssKO)
+        assertThrown!ConvException(parse!double(s));
+}
 
 /**
 Parsing one character off a string returns the character and bumps the
@@ -2598,6 +2644,7 @@ Target parse(Target, Source)(ref Source s)
     if (isSomeString!Source && !is(Source == enum) &&
         staticIndexOf!(Unqual!Target, dchar, Unqual!(ElementEncodingType!Source)) >= 0)
 {
+    if (s.empty) convError!(Source, Target)(s);
     static if (is(Unqual!Target == dchar))
     {
         Target result = s.front;
@@ -2634,6 +2681,7 @@ Target parse(Target, Source)(ref Source s)
     if (!isSomeString!Source && isInputRange!Source && isSomeChar!(ElementType!Source) &&
         isSomeChar!Target && Target.sizeof >= ElementType!Source.sizeof && !is(Target == enum))
 {
+    if (s.empty) convError!(Source, Target)(s);
     Target result = s.front;
     s.popFront();
     return result;
@@ -2654,7 +2702,7 @@ Target parse(Target, Source)(ref Source s)
         s = s[5 .. $];
         return false;
     }
-    parseError("bool should be case-insensive 'true' or 'false'");
+    parseError("bool should be case-insensitive 'true' or 'false'");
     assert(0);
 }
 
@@ -2697,7 +2745,7 @@ Target parse(Target, Source)(ref Source s)
         s = s[4 .. $];
         return null;
     }
-    parseError("null should be case-insensive 'null'");
+    parseError("null should be case-insensitive 'null'");
     assert(0);
 }
 
@@ -2720,9 +2768,28 @@ unittest
     assert(parse!(const(NullType))(s) is null);
 }
 
+//Used internally by parse Array/AA, to remove ascii whites
 private void skipWS(R)(ref R r)
 {
-    skipAll(r, ' ', '\n', '\t', '\r');
+    static if (isSomeString!R)
+    {
+        //Implementation inspired from stripLeft.
+        foreach(i, dchar c; r)
+        {
+            if (!std.ascii.isWhite(c))
+            {
+                r = r[i .. $];
+                return;
+            }
+        }
+        r = r[0 .. 0]; //Empty string with correct type.
+        return;
+    }
+    else
+    {
+        for ( ; !r.empty && std.ascii.isWhite(r.front) ; r.popFront())
+            { }
+    }
 }
 
 /**
@@ -2738,6 +2805,7 @@ Target parse(Target, Source)(ref Source s, dchar lbracket = '[', dchar rbracket 
 
     parseCheck!s(lbracket);
     skipWS(s);
+    if (s.empty) convError!(Source, Target)(s);
     if (s.front == rbracket)
     {
         s.popFront();
@@ -2747,6 +2815,7 @@ Target parse(Target, Source)(ref Source s, dchar lbracket = '[', dchar rbracket 
     {
         result ~= parseElement!(ElementType!Target)(s);
         skipWS(s);
+        if (s.empty) convError!(Source, Target)(s);
         if (s.front != comma)
             break;
     }
@@ -2791,6 +2860,15 @@ unittest
     assert(a2 == ["aaa", "bbb", "ccc"]);
 }
 
+unittest
+{
+    //Check proper failure
+    auto ss = "[ 1 , 2 , 3 ]";
+    foreach(i ; 0..ss.length-1)
+        assertThrown!ConvException(parse!(int[])(ss[0 .. i]));
+    int[] arr = parse!(int[])(ss);
+}
+
 /// ditto
 Target parse(Target, Source)(ref Source s, dchar lbracket = '[', dchar rbracket = ']', dchar comma = ',')
     if (isSomeString!Source && !is(Source == enum) &&
@@ -2800,6 +2878,7 @@ Target parse(Target, Source)(ref Source s, dchar lbracket = '[', dchar rbracket 
 
     parseCheck!s(lbracket);
     skipWS(s);
+    if (s.empty) convError!(Source, Target)(s);
     if (s.front == rbracket)
     {
         static if (result.length != 0)
@@ -2816,6 +2895,7 @@ Target parse(Target, Source)(ref Source s, dchar lbracket = '[', dchar rbracket 
             goto Lmanyerr;
         result[i++] = parseElement!(ElementType!Target)(s);
         skipWS(s);
+        if (s.empty) convError!(Source, Target)(s);
         if (s.front != comma)
         {
             if (i != result.length)
@@ -2869,6 +2949,7 @@ Target parse(Target, Source)(ref Source s, dchar lbracket = '[', dchar rbracket 
 
     parseCheck!s(lbracket);
     skipWS(s);
+    if (s.empty) convError!(Source, Target)(s);
     if (s.front == rbracket)
     {
         s.popFront();
@@ -2883,6 +2964,7 @@ Target parse(Target, Source)(ref Source s, dchar lbracket = '[', dchar rbracket 
         auto val = parseElement!ValueType(s);
         skipWS(s);
         result[key] = val;
+        if (s.empty) convError!(Source, Target)(s);
         if (s.front != comma) break;
     }
     parseCheck!s(rbracket);
@@ -2905,16 +2987,26 @@ unittest
     assert(aa3 == ["aaa":[1], "bbb":[2,3], "ccc":[4,5,6]]);
 }
 
+unittest
+{
+    //Check proper failure
+    auto ss = "[1:10, 2:20, 3:30]";
+    foreach(i ; 0..ss.length-1)
+        assertThrown!ConvException(parse!(int[int])(ss[0 .. i]));
+    int[int] aa = parse!(int[int])(ss);
+}
+
 private dchar parseEscape(Source)(ref Source s)
     if (isInputRange!Source && isSomeChar!(ElementType!Source))
 {
     parseCheck!s('\\');
+    if (s.empty) parseError("Unterminated escape sequence");
 
     dchar getHexDigit()
     {
+        if (s.empty) parseError("Unterminated escape sequence");
         s.popFront();
-        if (s.empty)
-            parseError("Unterminated escape sequence");
+        if (s.empty) parseError("Unterminated escape sequence");
         dchar c = s.front;
         if (!isHexDigit(c))
             parseError("Hex digit is missing");
@@ -2935,12 +3027,14 @@ private dchar parseEscape(Source)(ref Source s)
         case 'x':
             result  = getHexDigit() << 4;
             result |= getHexDigit();
+            if (s.empty) parseError("Unterminated escape sequence");
             break;
         case 'u':
             result  = getHexDigit() << 12;
             result |= getHexDigit() << 8;
             result |= getHexDigit() << 4;
             result |= getHexDigit();
+            if (s.empty) parseError("Unterminated escape sequence");
             break;
         case 'U':
             result  = getHexDigit() << 28;
@@ -2951,6 +3045,7 @@ private dchar parseEscape(Source)(ref Source s)
             result |= getHexDigit() << 8;
             result |= getHexDigit() << 4;
             result |= getHexDigit();
+            if (s.empty) parseError("Unterminated escape sequence");
             break;
         default:
             parseError("Unknown escape character " ~ to!string(s.front));
@@ -2970,10 +3065,12 @@ Target parseElement(Target, Source)(ref Source s)
     auto result = appender!Target();
 
     // parse array of chars
+    if (s.empty) convError!(Source, Target)(s);
     if (s.front == '[')
         return parse!Target(s);
 
     parseCheck!s('\"');
+    if (s.empty) convError!(Source, Target)(s);
     if (s.front == '\"')
     {
         s.popFront();
@@ -3008,6 +3105,7 @@ Target parseElement(Target, Source)(ref Source s)
     Target c;
 
     parseCheck!s('\'');
+    if (s.empty) convError!(Source, Target)(s);
     if (s.front != '\\')
     {
         c = s.front;
