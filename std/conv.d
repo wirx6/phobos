@@ -1401,19 +1401,14 @@ T toImpl(T, S)(S value)
     if (isAssociativeArray!S &&
         isAssociativeArray!T && !is(T == enum))
 {
-    //While we are "building" the AA, we need to unqualify, and only re-qualify at the end
-    alias KeyType!T          K2;
-    alias Unqual!(KeyType!T) MK2;   //Mutable key
-    alias ValueType!T          V2;
-    alias Unqual!(ValueType!T) MV2; //Mutable Value
-    Unqual!T result;
+    alias typeof(T.keys[0]) K2;
+    alias typeof(T.values[0]) V2;
+    T result;
     foreach (k1, v1; value)
     {
-        K2 k2 = cast(K2) to!MK2(k1); //Call to with mutable type, but store in non mutable
-        MV2 mv2 = to!MV2(v1); //Value must be kept mutable for insertion
-        result[k2] = mv2;
+        result[to!K2(k1)] = to!V2(v1);
     }
-    return cast(T)result;
+    return result;
 }
 
 unittest
@@ -1424,17 +1419,6 @@ unittest
     a["1"] = 2;
     auto b = to!(double[dstring])(a);
     assert(b["0"d] == 1 && b["1"d] == 2);
-}
-unittest //8709, from doc
-{
-    int[string][double[int[]]] a;
-    auto b = to!(short[wstring][string[double[]]])(a);
-    auto c = to!(immutable(short[immutable(wstring)])[immutable(string[double[]])])(a); //extra difficulty
-}
-unittest //Extra 8709 constness sanity check for non-AA with const-non-AA key/value types
-{
-    int[][int[]] a;
-    auto c = to!(immutable(short[])[immutable(short[])])(a);
 }
 
 private void testIntegralToFloating(Integral, Floating)()
@@ -3670,10 +3654,13 @@ unittest
 void toTextRange(T, W)(T value, W writer)
     if (isIntegral!T && isOutputRange!(W, char))
 {
+    char[value.sizeof * 4] buffer = void;
+    uint i = cast(uint) (buffer.length - 1);
+
     Unqual!(Unsigned!T) v = void;
     if (value < 0)
     {
-        put(writer, '-');
+        buffer[i--] = '-';
         v = -value;
     }
     else
@@ -3681,23 +3668,14 @@ void toTextRange(T, W)(T value, W writer)
         v = value;
     }
 
-    if (v < 10 && v < hexDigits.length)
+    while (v >= 10)
     {
-        put(writer, hexDigits[cast(size_t) v]);
-        return;
+        auto c = cast(uint) (v % 10);
+        v /= 10;
+        buffer[i--] = cast(char) (c + '0');
     }
 
-    char[v.sizeof * 4] buffer = void;
-    auto i = buffer.length;
-
-    do
-    {
-        auto c = cast(ubyte) (v % 10);
-        v = v / 10;
-        i--;
-        buffer[i] = cast(char) (c + '0');
-    } while (v);
-
+    buffer[i] = cast(char) (v + '0'); //hexDigits[cast(uint) v];
     put(writer, buffer[i .. $]);
 }
 
