@@ -441,33 +441,7 @@ unittest
     assert(to!string(test) == test);
 }
 
-/**
-$(RED Deprecated. It will be removed in September 2012. Please define $(D opCast)
-      for user-defined types instead of a $(D to) function.
-      $(LREF to) will now use $(D opCast).)
-
-Object-_to-non-object conversions look for a method "to" of the source
-object.
-
-Example:
-----
-class Date
-{
-    T to(T)() if(is(T == long))
-    {
-        return timestamp;
-    }
-    ...
-}
-
-unittest
-{
-    debug(conv) scope(success) writeln("unittest @", __FILE__, ":", __LINE__, " succeeded.");
-    auto d = new Date;
-    auto ts = to!long(d); // same as d.to!long()
-}
-----
- */
+//Explicitly undocumented. Do not use. To be removed in March 2013.
 deprecated T toImpl(T, S)(S value)
     if (is(S : Object) && !is(T : Object) && !isSomeString!T &&
         hasMember!(S, "to") && is(typeof(S.init.to!T()) : T))
@@ -1401,14 +1375,19 @@ T toImpl(T, S)(S value)
     if (isAssociativeArray!S &&
         isAssociativeArray!T && !is(T == enum))
 {
-    alias typeof(T.keys[0]) K2;
-    alias typeof(T.values[0]) V2;
-    T result;
+    alias KeyType!T   K2;
+    alias ValueType!T V2;
+
+    // While we are "building" the AA, we need to unqualify its values, and only re-qualify at the end
+    Unqual!V2[K2] result;
+
     foreach (k1, v1; value)
     {
-        result[to!K2(k1)] = to!V2(v1);
+        // Cast values temporarily to Unqual!V2 to store them to result variable
+        result[to!K2(k1)] = cast(Unqual!V2) to!V2(v1);
     }
-    return result;
+    // Cast back to original type
+    return cast(T)result;
 }
 
 unittest
@@ -1419,6 +1398,22 @@ unittest
     a["1"] = 2;
     auto b = to!(double[dstring])(a);
     assert(b["0"d] == 1 && b["1"d] == 2);
+}
+unittest // Bugzilla 8705, from doc
+{
+    int[string][double[int[]]] a;
+    auto b = to!(short[wstring][string[double[]]])(a);
+    a = [null:["hello":int.max]];
+    assertThrown!ConvOverflowException(to!(short[wstring][string[double[]]])(a));
+}
+version(none) // masked by unexpected linker error in posix platforms
+unittest // Extra cases for AA with qualifiers conversion
+{
+    int[][int[]] a;// = [[], []];
+    auto b = to!(immutable(short[])[immutable short[]])(a);
+
+    double[dstring][int[long[]]] c;
+    auto d = to!(immutable(short[immutable wstring])[immutable string[double[]]])(c);
 }
 
 private void testIntegralToFloating(Integral, Floating)()
@@ -3657,16 +3652,8 @@ void toTextRange(T, W)(T value, W writer)
     char[value.sizeof * 4] buffer = void;
     uint i = cast(uint) (buffer.length - 1);
 
-    Unqual!(Unsigned!T) v = void;
-    if (value < 0)
-    {
-        buffer[i--] = '-';
-        v = -value;
-    }
-    else
-    {
-        v = value;
-    }
+    bool negative = value < 0;
+    Unqual!(Unsigned!T) v = negative ? -value : value;
 
     while (v >= 10)
     {
@@ -3676,9 +3663,17 @@ void toTextRange(T, W)(T value, W writer)
     }
 
     buffer[i] = cast(char) (v + '0'); //hexDigits[cast(uint) v];
+    if (negative)
+        buffer[--i] = '-';
     put(writer, buffer[i .. $]);
 }
 
+unittest
+{
+    auto result = appender!(char[])();
+    toTextRange(-1, result);
+    assert(result.data == "-1");
+}
 
 template hardDeprec(string vers, string date, string oldFunc, string newFunc)
 {

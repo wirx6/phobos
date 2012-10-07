@@ -2958,15 +2958,23 @@ unittest
 Returns $(D true) iff a value of type $(D Rhs) can be assigned to a variable of
 type $(D Lhs).
 
+If you omit $(D Rhs), $(D isAssignable) will check identity assignable of $(D Lhs).
+
 Examples:
 ---
 static assert(isAssignable!(long, int));
 static assert(!isAssignable!(int, long));
 static assert( isAssignable!(const(char)[], string));
 static assert(!isAssignable!(string, char[]));
+
+// int is assignable to int
+static assert( isAssignable!(int));
+
+// immutable int is not assinable to immutable int
+static assert(!isAssignable!(immutable int));
 ---
 */
-template isAssignable(Lhs, Rhs)
+template isAssignable(Lhs, Rhs = Lhs)
 {
     enum bool isAssignable = is(typeof({
         Lhs l = void;
@@ -3004,6 +3012,11 @@ unittest
     struct S6 { void opAssign(in ref S5); }
     static assert( isAssignable!(S6, S5));
     static assert( isAssignable!(S6, immutable(S5)));
+}
+unittest
+{
+    static assert( isAssignable!(int));
+    static assert(!isAssignable!(immutable int));
 }
 
 
@@ -4390,32 +4403,22 @@ static assert(is(Unqual!(shared(const int)) == int));
  */
 template Unqual(T)
 {
-    static if (!isAssociativeArray!T)
+    version (none) // Error: recursive alias declaration @@@BUG1308@@@
     {
-        version (none) // Error: recursive alias declaration @@@BUG1308@@@
-        {
-                 static if (is(T U ==     const U)) alias Unqual!U Unqual;
-            else static if (is(T U == immutable U)) alias Unqual!U Unqual;
-            else static if (is(T U ==     inout U)) alias Unqual!U Unqual;
-            else static if (is(T U ==    shared U)) alias Unqual!U Unqual;
-            else                                    alias        T Unqual;
-        }
-        else // workaround
-        {
-                 static if (is(T U == shared(const U))) alias U Unqual;
-            else static if (is(T U ==        const U )) alias U Unqual;
-            else static if (is(T U ==    immutable U )) alias U Unqual;
-            else static if (is(T U ==        inout U )) alias U Unqual;
-            else static if (is(T U ==       shared U )) alias U Unqual;
-            else                                        alias T Unqual;
-        }
+             static if (is(T U ==     const U)) alias Unqual!U Unqual;
+        else static if (is(T U == immutable U)) alias Unqual!U Unqual;
+        else static if (is(T U ==     inout U)) alias Unqual!U Unqual;
+        else static if (is(T U ==    shared U)) alias Unqual!U Unqual;
+        else                                    alias        T Unqual;
     }
-    else
+    else // workaround
     {
-        //An AA's mutability is defined by its key's mutability.
-        alias KeyType!T K;
-        alias Unqual!(ValueType!T) V;
-        alias V[K] Unqual;
+             static if (is(T U == shared(const U))) alias U Unqual;
+        else static if (is(T U ==        const U )) alias U Unqual;
+        else static if (is(T U ==    immutable U )) alias U Unqual;
+        else static if (is(T U ==        inout U )) alias U Unqual;
+        else static if (is(T U ==       shared U )) alias U Unqual;
+        else                                        alias T Unqual;
     }
 }
 
@@ -4429,18 +4432,6 @@ unittest
     static assert(is(Unqual!(shared(const int)) == int));
     alias immutable(int[]) ImmIntArr;
     static assert(is(Unqual!(ImmIntArr) == immutable(int)[]));
-}
-unittest //8737 AA
-{
-    alias const(int[int]) AA;
-    alias const(int)[int] BB;
-    alias const(int)[const(int)] CC;
-    static assert(is(Unqual!AA == int[int]));
-    static assert(is(Unqual!BB == int[int]));
-    static assert(is(Unqual!CC == int[const(int)]));
-    alias int[int[int]] DD;
-    static assert(is(KeyType!DD == const(int)[int]));
-    static assert(is(Unqual!(KeyType!DD) == int[int]));
 }
 
 // [For internal use]
