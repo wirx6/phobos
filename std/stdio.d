@@ -40,6 +40,14 @@ version (DigitalMars)
     }
 }
 
+version (LDC)
+{
+    version (Windows)
+    {
+        version = MICROSOFT_STDIO;
+    }
+}
+
 version (Posix)
 {
     import core.sys.posix.stdio;
