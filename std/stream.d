@@ -89,6 +89,7 @@ version (Windows) {
   private import std.file;
 }
 
+// LDC_FIXME: Varargs on x86_64 are broken, can't implement printf, etc.
 version (LDC) version (X86_64) version = LDC_X86_64;
 
 /// InputStream is the interface for readable streams.
@@ -2658,8 +2659,10 @@ unittest {
   assert (m.available == 90);
   assert (m.size == 100);
   m.seekSet (0);
+  version (LDC_X86_64) {} else {
   assert (m.printf ("Answer is %d", 42) == 12);
   assert (buf[0..12] == "Answer is 42");
+  }
 }
 
 /// This subclass reads and constructs an array of bytes in memory.
