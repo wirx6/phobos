@@ -568,6 +568,11 @@ uint multibyteMul(uint[] dest, const uint[] src, uint multiplier, uint carry)
     {
         enum { zero = 0 }
     }
+    else version(LDC)
+    {
+        // Cannot define statics in naked functions with LDC.
+        enum { zero = 0 }
+    }
     else
     {
         __gshared int zero = 0;
@@ -648,7 +653,7 @@ string asmMulAdd_innerloop(string OP, string M_ADDRESS) {
         // The first member of 'dest' which will be modified is [EDI+4*EBX].
         // EAX must already contain the first member of 'src', [ESI+4*EBX].
 
-version(D_PIC) { bool using_PIC = true; } else { bool using_PIC=false; }
+version(D_PIC) { bool using_PIC = true; } else version(LDC) { bool using_PIC = true; } else { bool using_PIC=false; }
 return "asm {
         // Entry point for even length
         add EBX, 1;
@@ -736,6 +741,9 @@ uint multibyteMulAdd(char op)(uint [] dest, const uint [] src, uint multiplier, 
 
     version(D_PIC) {
         enum { zero = 0 }
+    } else version(LDC) {
+        // Cannot define statics in naked functions with LDC.
+        enum { zero = 0 }
     } else {
         // use p2 (load unit) instead of the overworked p0 or p1 (ALU units)
         // when initializing registers to zero.
@@ -815,6 +823,9 @@ void multibyteMultiplyAccumulate(uint [] dest, const uint[] left, const uint [] 
     // [ESP] = M = right[i] = multiplier for this pass through the loop.
     // right.length is changed into dest.ptr+dest.length
     version(D_PIC) {
+        enum { zero = 0 }
+    } else version(LDC) {
+        // Cannot define statics in naked functions with LDC.
         enum { zero = 0 }
     } else {
         // use p2 (load unit) instead of the overworked p0 or p1 (ALU units)
@@ -1095,6 +1106,9 @@ void multibyteTriangleAccumulateAsm(uint[] dest, const uint[] src)
     // [ESP] = M = src[i] = multiplier for this pass through the loop.
     // dest.length is changed into dest.ptr+dest.length
     version(D_PIC) {
+        enum { zero = 0 }
+    } else version(LDC) {
+        // Cannot define statics in naked functions with LDC.
         enum { zero = 0 }
     } else {
         // use p2 (load unit) instead of the overworked p0 or p1 (ALU units)
