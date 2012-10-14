@@ -1436,6 +1436,9 @@ unittest
  */
 creal expi(real y) @trusted pure nothrow
 {
+    // LDC_FIXME: Temporarily disabled because of precision-related issues
+    // in the unittest below.
+version (none) {
     version(InlineAsm_X86_Any)
     {
         asm
@@ -1445,6 +1448,7 @@ creal expi(real y) @trusted pure nothrow
             fxch ST(1), ST(0);
         }
     }
+}
     else
     {
         return cos(y) + sin(y)*1i;
