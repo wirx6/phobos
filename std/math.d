@@ -4191,7 +4191,7 @@ body
     }
     else
     {
-        sizediff_t i = A.length - 1;
+        ptrdiff_t i = A.length - 1;
         real r = A[i];
         while (--i >= 0)
         {
