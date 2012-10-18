@@ -332,9 +332,7 @@ Implements the homonym function (also known as $(D transform)) present
 in many languages of functional flavor. The call $(D map!(fun)(range))
 returns a range of which elements are obtained by applying $(D fun(x))
 left to right for all $(D x) in $(D range). The original ranges are
-not changed. Evaluation is done lazily. The range returned by $(D map)
-caches the last value such that evaluating $(D front) multiple times
-does not result in multiple calls to $(D fun).
+not changed. Evaluation is done lazily.
 
 Example:
 ----
@@ -1898,7 +1896,8 @@ void swapFront(R1, R2)(R1 r1, R2 r2)
 // splitter
 /**
 Splits a range using an element as a separator. This can be used with
-any range type, but is most popular with string types.
+any narrow string type or sliceable range type, but is most popular
+with string types.
 
 Two adjacent separators are considered to surround an empty element in
 the split range.
@@ -2138,10 +2137,12 @@ unittest
 
 /**
 Splits a range using another range as a separator. This can be used
-with any range type, but is most popular with string types.
+with any narrow string type or sliceable range type, but is most popular
+with string types.
  */
 auto splitter(Range, Separator)(Range r, Separator s)
-if (is(typeof(Range.init.front == Separator.init.front) : bool))
+if (is(typeof(Range.init.front == Separator.init.front) : bool)
+        && (hasSlicing!Range || isNarrowString!Range))
 {
     static struct Result
     {
@@ -7315,14 +7316,23 @@ unittest
 
 // sort
 /**
-Sorts a random-access range according to predicate $(D less). Performs
+Sorts a random-access range according to the predicate $(D less). Performs
 $(BIGOH r.length * log(r.length)) (if unstable) or $(BIGOH r.length *
 log(r.length) * log(r.length)) (if stable) evaluations of $(D less)
 and $(D swap). See also STL's $(WEB sgi.com/tech/stl/_sort.html, _sort)
 and $(WEB sgi.com/tech/stl/stable_sort.html, stable_sort).
 
-Example:
+$(D sort) returns a $(XREF range, SortedRange) over the original range, which
+functions that can take advantage of sorted data can then use to know that the
+range is sorted and adjust accordingly. The $(XREF range, SortedRange) is a
+wrapper around the original range, so both it and the original range are sorted,
+but other functions won't know that the original range has been sorted, whereas
+they $(I can) know that $(XREF range, SortedRange) has been sorted.
 
+See_Also:
+    $(XREF range, assumeSorted)
+
+Example:
 ----
 int[] array = [ 1, 2, 3, 4 ];
 // sort in descending order
