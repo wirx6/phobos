@@ -892,6 +892,13 @@ bool pointsTo(S, T)(ref const shared S source, ref const shared T target) @trust
     alias pointsTo!(shared(S), shared(T), void) ptsTo;  // do instantiate explicitly
     return ptsTo(source, target);
 }
+
+// LDC_FIXME: The below test case triggers a bug in LLVM's 'indvars' pass
+// on x86 (-m32), leading to LDC segfaults on optimized builds when using
+// LLVM 3.0 or 3.1. The problem apparently has been fixed in LLVM 3.2.
+// See GitHub pull request #224 for discussion and a reduced IR testcase.
+version (LDC) version (X86) version = LDC_IndvarsCrash;
+
 unittest
 {
     struct S1 { int a; S1 * b; }
@@ -938,7 +945,7 @@ unittest
 
     //But they do point their elements
     foreach(i; 0 .. 4)
-        assert(pointsTo(darr, darr[i]));
+        version (LDC_IndvarsCrash) {} else assert(pointsTo(darr, darr[i]));
     assert(pointsTo(darr[0..3], darr[2]));
     assert(!pointsTo(darr[0..3], darr[3]));
 }
