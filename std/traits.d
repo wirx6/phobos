@@ -517,7 +517,7 @@ unittest
 }
 
 
-/*
+/**
 Get, as a tuple, the identifiers of the parameters to a function symbol.
 
 Example:
@@ -534,8 +534,7 @@ template ParameterIdentifierTuple(func...)
     {
         template Get(size_t i)
         {
-            enum get = (PT[i..i+1] args) => __traits(identifier, args[0]);
-            enum Get = get(PT[i].init);
+            enum Get = __traits(identifier, PT[i..i+1]);
         }
     }
     else static if (is(FunctionTypeOf!func PT == __parameters))
@@ -592,7 +591,7 @@ unittest
 }
 
 
-/*
+/**
 Get, as a tuple, the default value of the parameters to a function symbol.
 If a parameter doesn't have the default value, $(D void) is returned instead.
 
@@ -2446,7 +2445,7 @@ unittest
     }
     static assert( hasElaborateAssign!S4);
 
-    struct S5 { @disable this(); this(int n){} S s; }
+    struct S5 { @disable this(); this(int n){ s = S(); } S s; }
     static assert( hasElaborateAssign!S5);
 }
 
