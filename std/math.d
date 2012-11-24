@@ -1575,9 +1575,9 @@ unittest
         f = ieeeFlags;
         assert(x == exptestpoints[i][1]);
         // Check the overflow bit
-        assert(f.overflow() == (fabs(x) == real.infinity));
+        assert(f.overflow == (fabs(x) == real.infinity));
         // Check the underflow bit
-        assert(f.underflow() == (fabs(x) < real.min_normal));
+        assert(f.underflow == (fabs(x) < real.min_normal));
         // Invalid and div by zero shouldn't be affected.
         assert(!f.invalid);
         assert(!f.divByZero);
@@ -2935,7 +2935,7 @@ unittest
         FloatingPointControl ctrl;
         ctrl.enableExceptions(FloatingPointControl.divByZeroException
                            | FloatingPointControl.overflowException);
-        assert(ctrl.enabledExceptions() ==
+        assert(ctrl.enabledExceptions ==
             (FloatingPointControl.divByZeroException
           | FloatingPointControl.overflowException));
 
@@ -2944,7 +2944,7 @@ unittest
     }
     assert(FloatingPointControl.rounding
        == FloatingPointControl.roundToNearest);
-    assert(FloatingPointControl.enabledExceptions() ==0);
+    assert(FloatingPointControl.enabledExceptions ==0);
 }
 
 

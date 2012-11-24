@@ -1006,7 +1006,7 @@ class ErrnoException : Exception
     uint errno;                 // operating system error code
     this(string msg, string file = null, size_t line = 0)
     {
-        errno = .errno();
+        errno = .errno;
         version (linux)
         {
             char[1024] buf = void;
