@@ -2440,7 +2440,37 @@ real nearbyint(real x) @trusted nothrow
  * $(B nearbyint) performs
  * the same operation, but does not set the FE_INEXACT exception.
  */
+version(LDC)
+{
+
+    version(LDC_LLVM_303)
+    {
+        @safe pure nothrow real rint(real x)
+        {
+            return llvm_rint(x);
+        }
+    }
+    else
+    {
+        pure nothrow real rint(real x)
+        {
+            asm
+            {
+                fld x;
+                frndint;
+                fstp x;
+            }
+            return x;
+        }
+    }
+
+}
+else
+{
+
 real rint(real x) @safe pure nothrow;      /* intrinsic */
+
+}
 
 /***************************************
  * Rounds x to the nearest integer value, using the current rounding
