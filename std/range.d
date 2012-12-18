@@ -840,12 +840,26 @@ infinite. The following code should compile for any random-access
 range.
 
 ----
-R r;
-static assert(isForwardRange!R);  // range is forward
-static assert(isBidirectionalRange!R || isInfinite!R);
-                                  // range is bidirectional or infinite
-auto e = r[1];                    // can index
+// range is finite and bidirectional or infinite and forward.
+static assert(isBidirectionalRange!R ||
+              isForwardRange!R && isInfinite!R);
+
+R r = void;
+auto e = r[1]; // can index
 static assert(is(typeof(e) == typeof(r.front))); // same type for indexed and front
+static assert(!isNarrowString!R); // narrow strings cannot be indexed as ranges
+static assert(hasLength!R || isInfinite!R); // must have length or be infinite
+
+// $ must work as it does with arrays if opIndex works with $
+static if(is(typeof(r[$])))
+{
+    static assert(is(typeof(r.front) == typeof(r[$])));
+
+    // $ - 1 doesn't make sense with infinite ranges but needs to work
+    // with finite ones.
+    static if(!isInfinite!R)
+        static assert(is(typeof(r.front) == typeof(r[$ - 1])));
+}
 ----
 
 The semantics of a random-access range (not checkable during
@@ -871,6 +885,14 @@ template isRandomAccessRange(R)
         static assert(is(typeof(e) == typeof(r.front)));
         static assert(!isNarrowString!R);
         static assert(hasLength!R || isInfinite!R);
+
+        static if(is(typeof(r[$])))
+        {
+            static assert(is(typeof(r.front) == typeof(r[$])));
+
+            static if(!isInfinite!R)
+                static assert(is(typeof(r.front) == typeof(r[$ - 1])));
+        }
     }));
 }
 
@@ -1211,39 +1233,132 @@ unittest
 }
 
 /**
-Returns $(D true) if $(D R) offers a slicing operator with
-integral boundaries, that in turn returns an input range type. The
-following code should compile for $(D hasSlicing) to be $(D true):
+Returns $(D true) if $(D R) offers a slicing operator with integral boundaries
+that returns a forward range type.
+
+For finite ranges, the result of $(D opSlice) must be of the same type as the
+original range type. If the range defines $(D opDollar), then it must support
+subtraction.
+
+For infinite ranges, when $(I not) using $(D opDollar), the result of
+$(D opSlice) must be the result of $(LREF take) or $(LREF takeExactly) on the
+original range (they both return the same type for infinite ranges). However,
+when using $(D opDollar), the result of $(D opSlice) must be that of the
+original range type.
+
+The following code must compile for $(D hasSlicing) to be $(D true):
 
 ----
-R r;
-auto s = r[1 .. 2];
-static assert(isInputRange!(typeof(s)));
+R r = void;
+
+static if(isInfinite!R)
+    typeof(take(r, 1)) s = r[1 .. 2];
+else
+{
+    static assert(is(typeof(r[1 .. 2]) == R));
+    R s = r[1 .. 2];
+}
+
+s = r[1 .. 2];
+
+static if(is(typeof(r[0 .. $])))
+{
+    static assert(is(typeof(r[0 .. $]) == R));
+    R t = r[0 .. $];
+    t = r[0 .. $];
+
+    static if(!isInfinite!R)
+    {
+        static assert(is(typeof(r[0 .. $ - 1]) == R));
+        R u = r[0 .. $ - 1];
+        u = r[0 .. $ - 1];
+    }
+}
+
+static assert(isForwardRange!(typeof(r[1 .. 2])));
+static assert(hasLength!(typeof(r[1 .. 2])));
 ----
  */
 template hasSlicing(R)
 {
-    enum bool hasSlicing = !isNarrowString!R && is(typeof(
+    enum bool hasSlicing = isForwardRange!R && !isNarrowString!R && is(typeof(
     (inout int = 0)
     {
         R r = void;
-        auto s = r[1 .. 2];
-        static assert(isInputRange!(typeof(s)));
+
+        static if(isInfinite!R)
+            typeof(take(r, 1)) s = r[1 .. 2];
+        else
+        {
+            //@@@BUG@@@ 8847 makes it so that the three commented out lines
+            //cause Phobos to fail to compile - hence why they're commented
+            //out. They should be uncommented once that bug has been fixed.
+            //static assert(is(typeof(r[1 .. 2]) == R));
+            R s = r[1 .. 2];
+        }
+
+        s = r[1 .. 2];
+
+        static if(is(typeof(r[0 .. $])))
+        {
+            //static assert(is(typeof(r[0 .. $]) == R));
+            R t = r[0 .. $];
+            t = r[0 .. $];
+
+            static if(!isInfinite!R)
+            {
+                //static assert(is(typeof(r[0 .. $ - 1]) == R));
+                R u = r[0 .. $ - 1];
+                u = r[0 .. $ - 1];
+            }
+        }
+
+        static assert(isForwardRange!(typeof(r[1 .. 2])));
+        static assert(hasLength!(typeof(r[1 .. 2])));
     }));
 }
 
 unittest
 {
     static assert( hasSlicing!(int[]));
+    static assert( hasSlicing!(const(int)[]));
+    static assert(!hasSlicing!(const int[]));
     static assert( hasSlicing!(inout(int)[]));
+    static assert(!hasSlicing!(inout int []));
+    static assert( hasSlicing!(immutable(int)[]));
+    static assert(!hasSlicing!(immutable int[]));
     static assert(!hasSlicing!string);
+    static assert( hasSlicing!dstring);
 
-    struct A { int opSlice(uint, uint); }
-    struct B { int[] opSlice(uint, uint); }
-    struct C { @disable this(); int[] opSlice(size_t, size_t); }
+    enum rangeFuncs = "@property int front();" ~
+                      "void popFront();" ~
+                      "@property bool empty();" ~
+                      "@property auto save() { return this; }" ~
+                      "@property size_t length();";
+
+    struct A { mixin(rangeFuncs); int opSlice(size_t, size_t); }
+    struct B { mixin(rangeFuncs); B opSlice(size_t, size_t); }
+    struct C { mixin(rangeFuncs); @disable this(); C opSlice(size_t, size_t); }
+    struct D { mixin(rangeFuncs); int[] opSlice(size_t, size_t); }
     static assert(!hasSlicing!(A));
     static assert( hasSlicing!(B));
     static assert( hasSlicing!(C));
+    static assert(!hasSlicing!(D));
+
+    struct InfOnes
+    {
+        enum empty = false;
+        void popFront() {}
+        @property int front() { return 1; }
+        @property InfOnes save() { return this; }
+        auto opSlice(size_t i, size_t j) { return takeExactly(this, j - i); }
+        auto opSlice(size_t i, Dollar d) { return this; }
+
+        struct Dollar {}
+        Dollar opDollar() const { return Dollar.init; }
+    }
+
+    static assert(hasSlicing!InfOnes);
 }
 
 /**
@@ -1978,10 +2093,10 @@ if (Ranges.length > 0 && allSatisfy!(isInputRange, staticMap!(Unqual, Ranges)))
             static if (allSatisfy!(isForwardRange, R))
                 @property auto save()
                 {
-                    typeof(this) result;
+                    typeof(this) result = this;
                     foreach (i, Unused; R)
                     {
-                        result.source[i] = source[i].save;
+                        result.source[i] = result.source[i].save;
                     }
                     return result;
                 }
@@ -2392,11 +2507,10 @@ if (Rs.length > 1 && allSatisfy!(isInputRange, staticMap!(Unqual, Rs)))
         static if (allSatisfy!(isForwardRange, staticMap!(Unqual, Rs)))
             @property auto save()
             {
-                Result result;
-                result._current = _current;
+                Result result = this;
                 foreach (i, Unused; Rs)
                 {
-                    result.source[i] = source[i].save;
+                    result.source[i] = result.source[i].save;
                 }
                 return result;
             }
@@ -2512,8 +2626,10 @@ assert(equal(s, [ 1, 2, 3, 4, 5 ][]));
 ----
  */
 struct Take(Range)
-if (isInputRange!(Unqual!Range)
-        && !(hasSlicing!(Unqual!Range) || is(Range T == Take!T)))
+if (isInputRange!(Unqual!Range) &&
+    //take _cannot_ test hasSlicing on infinite ranges, because hasSlicing uses
+    //take for slicing infinite ranges.
+    !((!isInfinite!(Unqual!Range) && hasSlicing!(Unqual!Range)) || is(Range T == Take!T)))
 {
     private alias Unqual!Range R;
 
@@ -2668,32 +2784,24 @@ if (isInputRange!(Unqual!Range)
 // This template simply aliases itself to R and is useful for consistency in
 // generic code.
 template Take(R)
-if (isInputRange!(Unqual!R) && (hasSlicing!(Unqual!R) || is(R T == Take!T)))
+if (isInputRange!(Unqual!R) &&
+    ((!isInfinite!(Unqual!R) && hasSlicing!(Unqual!R)) || is(R T == Take!T)))
 {
     alias R Take;
 }
 
-// take for ranges with slicing (finite or infinite)
+// take for finite ranges with slicing
 /// ditto
 Take!R take(R)(R input, size_t n)
-if (isInputRange!(Unqual!R) && hasSlicing!(Unqual!R))
+if (isInputRange!(Unqual!R) && !isInfinite!(Unqual!R) && hasSlicing!(Unqual!R))
 {
-    static if (hasLength!R)
-    {
-        // @@@BUG@@@
-        //return input[0 .. min(n, $)];
-        return input[0 .. min(n, input.length)];
-    }
-    else
-    {
-        static assert(isInfinite!R,
-                "Nonsensical finite range with slicing but no length");
-        return input[0 .. n];
-    }
+    // @@@BUG@@@
+    //return input[0 .. min(n, $)];
+    return input[0 .. min(n, input.length)];
 }
 
 // take(take(r, n1), n2)
-Take!(R) take(R)(R input, size_t n)
+Take!R take(R)(R input, size_t n)
 if (is(R T == Take!T))
 {
     return R(input.source, min(n, input._maxAvailable));
@@ -2701,7 +2809,7 @@ if (is(R T == Take!T))
 
 // Regular take for input ranges
 Take!(R) take(R)(R input, size_t n)
-if (isInputRange!(Unqual!R) && !hasSlicing!(Unqual!R) && !is(R T == Take!T))
+if (isInputRange!(Unqual!R) && (isInfinite!(Unqual!R) || !hasSlicing!(Unqual!R) && !is(R T == Take!T)))
 {
     return Take!R(input, n);
 }
@@ -2731,7 +2839,6 @@ unittest
     takeMyStrAgain = take(takeMyStr, 10);
     assert(equal(takeMyStrAgain, "This is"));
 
-
     foreach(DummyType; AllDummyRanges) {
         DummyType dummy;
         auto t = take(dummy, 5);
@@ -2756,6 +2863,9 @@ unittest
         // also have random access.
 
         assert(equal(t, [1,2,3,4,5]));
+
+        //Test that take doesn't wrap the result of take.
+        assert(take(t, 4) == take(dummy, 4));
     }
 
     immutable myRepeat = repeat(1);
@@ -2785,23 +2895,30 @@ n) elements. Consequently, the result of $(D takeExactly(range, n))
 always defines the $(D length) property (and initializes it to $(D n))
 even when $(D range) itself does not define $(D length).
 
-If $(D R) has slicing and its slice has length, $(D takeExactly) simply
-returns a slice of $(D range).
-Otherwise if $(D R) is an input range, the type of the result
-is an input range with length. Finally, if $(D R) is a forward range
-(including bidirectional), the type of the result is a forward range
-with length.
+The result of $(D takeExactly) is identical to that of $(LREF take) in
+cases where the original range defines $(D length) or is infinite.
  */
 auto takeExactly(R)(R range, size_t n)
-if (isInputRange!R && !hasSlicing!R)
+if (isInputRange!R)
 {
     static if (is(typeof(takeExactly(range._input, n)) == R))
     {
+        assert(n <= range._n,
+               "Attempted to take more than the length of the range with takeExactly.");
         // takeExactly(takeExactly(r, n1), n2) has the same type as
         // takeExactly(r, n1) and simply returns takeExactly(r, n2)
         range._n = n;
         return range;
     }
+    //Also covers hasSlicing!R for finite ranges.
+    else static if (hasLength!R)
+    {
+        assert(n <= range.length,
+               "Attempted to take more than the length of the range with takeExactly.");
+        return take(range, n);
+    }
+    else static if (isInfinite!R)
+        return Take!R(range, n);
     else
     {
         static struct Result
@@ -2830,12 +2947,6 @@ if (isInputRange!R && !hasSlicing!R)
     }
 }
 
-auto takeExactly(R)(R range, size_t n)
-if (hasSlicing!R && hasLength!(typeof(range[0 .. n])))
-{
-    return range[0 .. n];
-}
-
 unittest
 {
     auto a = [ 1, 2, 3, 4, 5 ];
@@ -2856,8 +2967,42 @@ unittest
     assert(e.length == 3);
     assert(e.front == 1);
 
-    assert(equal(takeExactly(e, 4), [1, 2, 3, 4]));
-    // b[1]++;
+    assert(equal(takeExactly(e, 3), [1, 2, 3]));
+
+    //Test that take and takeExactly are the same for ranges which define length
+    //but aren't sliceable.
+    struct L
+    {
+        @property auto front() { return _arr[0]; }
+        @property bool empty() { return _arr.empty; }
+        void popFront() { _arr.popFront(); }
+        @property size_t length() { return _arr.length; }
+        int[] _arr;
+    }
+    static assert(is(typeof(take(L(a), 3)) == typeof(takeExactly(L(a), 3))));
+    assert(take(L(a), 3) == takeExactly(L(a), 3));
+
+    //Test that take and takeExactly are the same for ranges which are sliceable.
+    static assert(is(typeof(take(a, 3)) == typeof(takeExactly(a, 3))));
+    assert(take(a, 3) == takeExactly(a, 3));
+
+    //Test that take and takeExactly are the same for infinite ranges.
+    auto inf = repeat(1);
+    static assert(is(typeof(take(inf, 5)) == Take!(typeof(inf))));
+    assert(take(inf, 5) == takeExactly(inf, 5));
+
+    //Test that take and takeExactly are _not_ the same for ranges which don't
+    //define length.
+    static assert(!is(typeof(take(filter!"true"(a), 3)) == typeof(takeExactly(filter!"true"(a), 3))));
+
+    foreach(DummyType; AllDummyRanges)
+    {
+        DummyType dummy;
+        auto t = takeExactly(dummy, 5);
+
+        //Test that takeExactly doesn't wrap the result of takeExactly.
+        assert(takeExactly(t, 4) == takeExactly(dummy, 4));
+    }
 }
 
 /**
@@ -3038,7 +3183,9 @@ unittest
         @disable this();
         this(int[] arr) { _arr = arr; }
         mixin(genInput());
+        @property auto save() { return this; }
         auto opSlice(size_t i, size_t j) { return typeof(this)(_arr[i .. j]); }
+        @property size_t length() { return _arr.length; }
         int[] _arr;
     }
 
@@ -3068,7 +3215,9 @@ unittest
     {
         this(int[] arr) { _arr = arr; }
         mixin(genInput());
+        @property auto save() { return new typeof(this)(_arr); }
         auto opSlice(size_t i, size_t j) { return new typeof(this)(_arr[i .. j]); }
+        @property size_t length() { return _arr.length; }
         int[] _arr;
     }
 
@@ -3687,7 +3836,7 @@ struct Cycle(Range)
 
         @property Cycle save()
         {
-            Cycle ret;
+            Cycle ret = this;
             ret._original = this._original.save;
             ret._current =  this._current.save;
             return ret;
@@ -3929,11 +4078,10 @@ if(Ranges.length && allSatisfy!(isInputRange, staticMap!(Unqual, Ranges)))
     static if (allSatisfy!(isForwardRange, R))
         @property Zip save()
         {
-            Zip result;
-            result.stoppingPolicy = stoppingPolicy;
+            Zip result = this;
             foreach (i, Unused; R)
             {
-                result.ranges[i] = ranges[i].save;
+                result.ranges[i] = result.ranges[i].save;
             }
             return result;
         }
@@ -4319,6 +4467,10 @@ unittest
         zLongest.popFront();
         assert(zLongest.empty);
     }
+
+    // BUG 8900
+    static assert(__traits(compiles, zip([1, 2], repeat('a'))));
+    static assert(__traits(compiles, zip(repeat('a'), [1, 2])));
 
     // Doesn't work yet.  Issues w/ emplace.
     // static assert(is(Zip!(immutable int[], immutable float[])));
@@ -4851,6 +5003,7 @@ unittest
 unittest
 {
     auto odds = sequence!("a[0] + n * a[1]")(1, 2);
+    static assert(hasSlicing!(typeof(odds)));
 
     // static slicing tests
     assert(equal(odds[0 .. 5], take(odds, 5)));
@@ -6724,11 +6877,11 @@ template InputRangeObject(R) if (isInputRange!(Unqual!R)) {
             static if (isBidirectionalRange!R) {
                 @property E back() { return _range.back; }
 
-                @property E moveBack() {
+                E moveBack() {
                     return .moveBack(_range);
                 }
 
-                @property void popBack() { return _range.popBack(); }
+                void popBack() { return _range.popBack(); }
 
                 static if (hasAssignableElements!R) {
                     @property void back(E newVal) {
@@ -7034,7 +7187,7 @@ if (isRandomAccessRange!Range && hasLength!Range)
     @property auto save()
     {
         // Avoid the constructor
-        typeof(this) result;
+        typeof(this) result = this;
         result._input = _input.save;
         return result;
     }
@@ -7074,7 +7227,7 @@ if (isRandomAccessRange!Range && hasLength!Range)
         auto opSlice(size_t a, size_t b)
         {
             assert(a <= b);
-            typeof(this) result;
+            typeof(this) result = this;
             result._input = _input[a .. b];// skip checking
             return result;
         }
@@ -7862,8 +8015,7 @@ assert(buffer2 == [11, 12, 13, 14, 15]);
 
 
     /++ Ditto +/
-    static if(isBidirectionalRange!R)
-    void popBack()
+    static if(isBidirectionalRange!R) void popBack()
     {
         return (*_range).popBack();
     }
@@ -7899,8 +8051,7 @@ assert(buffer2 == [11, 12, 13, 14, 15]);
         Only defined if $(D hasMobileElements!R) and $(D isForwardRange!R) are
         $(D true).
       +/
-    static if(hasMobileElements!R && isForwardRange!R)
-    auto moveFront()
+    static if(hasMobileElements!R && isForwardRange!R) auto moveFront()
     {
         return (*_range).moveFront();
     }
@@ -7910,8 +8061,7 @@ assert(buffer2 == [11, 12, 13, 14, 15]);
         Only defined if $(D hasMobileElements!R) and $(D isBidirectionalRange!R)
         are $(D true).
       +/
-    static if(hasMobileElements!R && isBidirectionalRange!R)
-    auto moveBack()
+    static if(hasMobileElements!R && isBidirectionalRange!R) auto moveBack()
     {
         return (*_range).moveBack();
     }
@@ -7921,8 +8071,7 @@ assert(buffer2 == [11, 12, 13, 14, 15]);
         Only defined if $(D hasMobileElements!R) and $(D isRandomAccessRange!R)
         are $(D true).
       +/
-    static if(hasMobileElements!R && isRandomAccessRange!R)
-    auto moveAt(IndexType)(IndexType index)
+    static if(hasMobileElements!R && isRandomAccessRange!R) auto moveAt(IndexType)(IndexType index)
         if(is(typeof((*_range).moveAt(index))))
     {
         return (*_range).moveAt(index);
@@ -8358,4 +8507,46 @@ auto refRange(R)(R* range)
        is(R == class))
 {
     return *range;
+}
+
+/*****************************************************************************/
+
+unittest    // bug 9060
+{
+    // fix for std.algorithm
+    auto r = map!(x => 0)([1]);
+    chain(r, r);
+    zip(r, r);
+    roundRobin(r, r);
+
+    struct NRAR {
+        typeof(r) input;
+        @property empty() { return input.empty; }
+        @property front() { return input.front; }
+        void popFront()   { input.popFront(); }
+        @property save()  { return NRAR(input.save); }
+    }
+    auto n1 = NRAR(r);
+    cycle(n1);  // non random access range version
+
+    assumeSorted(r);
+
+    // fix for std.range
+    joiner([r], [9]);
+
+    struct NRAR2 {
+        NRAR input;
+        @property empty() { return true; }
+        @property front() { return input; }
+        void popFront() { }
+        @property save()  { return NRAR2(input.save); }
+    }
+    auto n2 = NRAR2(n1);
+    joiner(n2);
+
+    group(r);
+
+    until(r, 7);
+    static void foo(R)(R r) { until!(x => x > 7)(r); }
+    foo(r);
 }

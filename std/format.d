@@ -686,7 +686,6 @@ struct FormatSpec(Char)
     {
         union
         {
-            ubyte allFlags;
             mixin(bitfields!(
                         bool, "flDash", 1,
                         bool, "flZero", 1,
@@ -694,6 +693,7 @@ struct FormatSpec(Char)
                         bool, "flPlus", 1,
                         bool, "flHash", 1,
                         ubyte, "", 3));
+            ubyte allFlags;
         }
     }
 
@@ -2016,7 +2016,7 @@ if (isInputRange!T)
                     // right align
                     auto len = val.length;
                 }
-                else static if (isForwardRange!T)
+                else static if (isForwardRange!T && !isInfinite!T)
                 {
                     auto len = walkLength(val.save);
                 }
