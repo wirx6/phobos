@@ -2749,7 +2749,7 @@ unittest
 }
 
 //Used internally by parse Array/AA, to remove ascii whites
-private void skipWS(R)(ref R r)
+package void skipWS(R)(ref R r)
 {
     static if (isSomeString!R)
     {
