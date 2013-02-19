@@ -348,6 +348,13 @@ T toImpl(T, S)(S value)
     return value;
 }
 
+unittest
+{
+    enum E { a }  // Issue 9523 - Allow identity enum conversion
+    auto e = to!E(E.a);
+    assert(e == E.a);
+}
+
 private template isSignedInt(T)
 {
     enum isSignedInt = isIntegral!T && isSigned!T;
@@ -754,7 +761,7 @@ unittest
 }
 
 /**
-Stringnize conversion from all types is supported.
+Stringize conversion from all types is supported.
 $(UL
   $(LI String _to string conversion works for any two string types having
        ($(D char), $(D wchar), $(D dchar)) character widths and any
@@ -1131,13 +1138,11 @@ unittest
 
     Conversions to string with optional configures.
 */
-deprecated T toImpl(T, S)(S s, in T leftBracket, in T separator = ", ", in T rightBracket = "]")
+deprecated("Please use std.format.formattedWrite instead.")
+T toImpl(T, S)(S s, in T leftBracket, in T separator = ", ", in T rightBracket = "]")
     if (!isSomeChar!(ElementType!S) && (isInputRange!S || isInputRange!(Unqual!S)) &&
         isExactSomeString!T)
 {
-    pragma(msg, hardDeprec!("2.060", "January 2013", "std.conv.toImpl with extra parameters",
-                                                 "std.format.formattedWrite"));
-
     static if (!isInputRange!S)
     {
         alias toImpl!(T, Unqual!S) ti;
@@ -1168,24 +1173,20 @@ deprecated T toImpl(T, S)(S s, in T leftBracket, in T separator = ", ", in T rig
 }
 
 /// ditto
-deprecated T toImpl(T, S)(ref S s, in T leftBracket, in T separator = " ", in T rightBracket = "]")
+deprecated("Please use std.format.formattedWrite instead.")
+T toImpl(T, S)(ref S s, in T leftBracket, in T separator = " ", in T rightBracket = "]")
     if ((is(S == void[]) || is(S == const(void)[]) || is(S == immutable(void)[])) &&
         isExactSomeString!T)
 {
-    pragma(msg, hardDeprec!("2.060", "January 2013", "std.conv.toImpl with extra parameters",
-                                                 "std.format.formattedWrite"));
-
     return toImpl(s);
 }
 
 /// ditto
-deprecated T toImpl(T, S)(S s, in T leftBracket, in T keyval = ":", in T separator = ", ", in T rightBracket = "]")
+deprecated("Please use std.format.formattedWrite instead.")
+T toImpl(T, S)(S s, in T leftBracket, in T keyval = ":", in T separator = ", ", in T rightBracket = "]")
     if (isAssociativeArray!S && !is(S == enum) &&
         isExactSomeString!T)
 {
-    pragma(msg, hardDeprec!("2.060", "January 2013", "std.conv.toImpl with extra parameters",
-                                                 "std.format.formattedWrite"));
-
     alias Unqual!(ElementEncodingType!T) Char;
     auto result = appender!(Char[])();
 // hash-to-string conversion
@@ -1205,26 +1206,22 @@ deprecated T toImpl(T, S)(S s, in T leftBracket, in T keyval = ":", in T separat
 }
 
 /// ditto
-deprecated T toImpl(T, S)(S s, in T nullstr)
+deprecated("Please use std.format.formattedWrite instead.")
+T toImpl(T, S)(S s, in T nullstr)
     if (is(S : Object) &&
         isExactSomeString!T)
 {
-    pragma(msg, hardDeprec!("2.060", "January 2013", "std.conv.toImpl with extra parameters",
-                                                 "std.format.formattedWrite"));
-
     if (!s)
         return nullstr;
     return to!T(s.toString());
 }
 
 /// ditto
-deprecated T toImpl(T, S)(S s, in T left, in T separator = ", ", in T right = ")")
+deprecated("Please use std.format.formattedWrite instead.")
+T toImpl(T, S)(S s, in T left, in T separator = ", ", in T right = ")")
     if (is(S == struct) && !is(typeof(&S.init.toString)) && !isInputRange!S &&
         isExactSomeString!T)
 {
-    pragma(msg, hardDeprec!("2.060", "January 2013", "std.conv.toImpl with extra parameters",
-                                                 "std.format.formattedWrite"));
-
     Tuple!(FieldTypeTuple!S) * t = void;
     static if ((*t).sizeof == S.sizeof)
     {
@@ -1608,7 +1605,7 @@ T toImpl(T, S)(S value)
     if ( isExactSomeString!S && isDynamicArray!S &&
         !isExactSomeString!T && is(typeof(parse!T(value))))
 {
-    scope(exit)
+    scope(success)
     {
         if (value.length)
         {
@@ -1623,7 +1620,7 @@ T toImpl(T, S)(S value, uint radix)
     if ( isExactSomeString!S && isDynamicArray!S &&
         !isExactSomeString!T && is(typeof(parse!T(value, radix))))
 {
-    scope(exit)
+    scope(success)
     {
         if (value.length)
         {
@@ -1631,6 +1628,13 @@ T toImpl(T, S)(S value, uint radix)
         }
     }
     return parse!T(value, radix);
+}
+
+unittest
+{
+    // Issue 6668 - ensure no collaterals thrown
+    try { to!uint("-1"); }
+    catch (ConvException e) { assert(e.next is null); }
 }
 
 unittest
@@ -1646,6 +1650,38 @@ unittest
     // 6255
     auto n = to!int("FF", 16);
     assert(n == 255);
+}
+
+/**
+Convert a value that is implicitly convertible to the enum base type
+into an Enum value. If the value does not match any enum member values
+a ConvException is thrown.
+Enums with floating-point or string base types are not supported.
+*/
+T toImpl(T, S)(S value)
+    if (is(T == enum) && !is(S == enum) && is(S : OriginalType!T)
+        && !isFloatingPoint!(OriginalType!T) && !isSomeString!(OriginalType!T))
+{
+    foreach (Member; EnumMembers!T)
+    {
+        if (Member == value)
+            return Member;
+    }
+
+    throw new ConvException(format("Value (%s) does not match any member value of enum '%s'", value, T.stringof));
+}
+
+unittest
+{
+    enum En8143 : int { A = 10, B = 20, C = 30, D = 20 }
+    enum En8143[][] m3 = to!(En8143[][])([[10, 30], [30, 10]]);
+    static assert(m3 == [[En8143.A, En8143.C], [En8143.C, En8143.A]]);
+
+    En8143 en1 = to!En8143(10);
+    assert(en1 == En8143.A);
+    assertThrown!ConvException(to!En8143(5));   // matches none
+    En8143[][] m1 = to!(En8143[][])([[10, 30], [30, 10]]);
+    assert(m1 == [[En8143.A, En8143.C], [En8143.C, En8143.A]]);
 }
 
 /***************************************************************
@@ -3139,13 +3175,15 @@ dstring dtext(T...)(T args)
     return textImpl!dstring(args);
 }
 
-private S textImpl(S, U...)(U args)
+private S textImpl(S, U...)(U args) if (U.length == 0)
 {
-    S result;
-    foreach (i, arg; args)
-    {
-        result ~= to!S(args[i]);
-    }
+    return null;
+}
+
+private S textImpl(S, U...)(U args) if (U.length > 0)
+{
+    auto result = to!S(args[0]);
+    foreach (arg; args[1 .. $]) result ~= to!S(arg);
     return result;
 }
 
@@ -3155,6 +3193,9 @@ unittest
     assert(text(42, ' ', 1.5, ": xyz") == "42 1.5: xyz");
     assert(wtext(42, ' ', 1.5, ": xyz") == "42 1.5: xyz"w);
     assert(dtext(42, ' ', 1.5, ": xyz") == "42 1.5: xyz"d);
+    assert(text() is null);
+    assert(wtext() is null);
+    assert(dtext() is null);
 }
 
 /***************************************************************
@@ -3795,11 +3836,4 @@ unittest
     auto result = appender!(char[])();
     toTextRange(-1, result);
     assert(result.data == "-1");
-}
-
-template hardDeprec(string vers, string date, string oldFunc, string newFunc)
-{
-    enum hardDeprec = Format!("Notice: As of Phobos %s, %s has been deprecated. " ~
-                              "It will be removed in %s. Please use %s instead.",
-                              vers, oldFunc, date, newFunc);
 }

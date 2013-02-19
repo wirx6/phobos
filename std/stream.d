@@ -1391,7 +1391,7 @@ class Stream : InputStream, OutputStream {
           read(c);
           crc.put(c);
         }
-        
+
         union resUnion
         {
             size_t hash;
@@ -2170,7 +2170,7 @@ class BufferedFile: BufferedStream {
   }
 
   /// opens existing handle; use with care!
-  this(HANDLE hFile, FileMode mode, size_t buffersize) {
+  this(HANDLE hFile, FileMode mode, size_t buffersize = DefaultBufferSize) {
     super(new File(hFile,mode),buffersize);
   }
 
