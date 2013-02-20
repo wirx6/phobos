@@ -4375,6 +4375,16 @@ unittest {
 
 public:
 
+version (DigitalMars)
+{
+    version (Windows) version = RealPacked;
+    else version (linux) version = Real4ByteAligned;
+}
+else version (LDC)
+{
+    version (Windows) version = Real4ByteAligned;
+    else version (linux) version = Real4ByteAligned;
+}
 
 /***********************************
  * Evaluate polynomial A(x) = $(SUB a, 0) + $(SUB a, 1)x + $(SUB a, 2)$(POWER x,2)
@@ -4394,7 +4404,7 @@ body
 {
     version (D_InlineAsm_X86)
     {
-        version (Windows)
+        version (RealPacked)
         {
         // BUG: This code assumes a frame pointer in EBP.
             asm // assembler by W. Bright
@@ -4423,7 +4433,7 @@ body
                 ;
             }
         }
-        else version (linux)
+        else version (Real4ByteAligned)
         {
             asm // assembler by W. Bright
             {
