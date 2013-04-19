@@ -65,6 +65,9 @@ version(unittest)
 version(LDC)
 {
     import ldc.intrinsics;
+    import ldc.llvmasm;
+    version(X86) version = INLINE_YL2X;
+    version(X86_64) version = INLINE_YL2X;
 }
 
 version(DigitalMars)
@@ -4927,8 +4930,30 @@ alias isInfinity isinf;
  * translate to a single x87 instruction.
  */
 
-real yl2x(real x, real y)   @safe pure nothrow;       // y * log2(x)
-real yl2xp1(real x, real y) @safe pure nothrow;       // y * log2(x + 1)
+version(LDC)
+{
+    // If INLINE_YL2X is not defined then there is be no reference
+    // to these functions.
+    version(INLINE_YL2X)
+    {
+        real yl2x(real x, real y)   @trusted pure nothrow     // y * log2(x)
+        {
+            pragma(LDC_allow_inline);
+            return __asm!(real)("fyl2x", "={st},{st(1)},{st},~{st(1)}", y, x);
+        }
+
+        real yl2xp1(real x, real y) @trusted pure nothrow     // y * log2(x + 1)
+        {
+            pragma(LDC_allow_inline);
+            return __asm!(real)("fyl2xp1", "={st},{st(1)},{st},~{st(1)}", y, x);
+        }
+    }
+}
+else
+{
+    real yl2x(real x, real y)   @safe pure nothrow;       // y * log2(x)
+    real yl2xp1(real x, real y) @safe pure nothrow;       // y * log2(x + 1)
+}
 
 unittest
 {
