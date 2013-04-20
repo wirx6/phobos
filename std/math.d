@@ -4938,13 +4938,11 @@ version(LDC)
     {
         real yl2x(real x, real y)   @trusted pure nothrow     // y * log2(x)
         {
-            pragma(LDC_allow_inline);
             return __asm!(real)("fyl2x", "={st},{st(1)},{st},~{st(1)}", y, x);
         }
 
         real yl2xp1(real x, real y) @trusted pure nothrow     // y * log2(x + 1)
         {
-            pragma(LDC_allow_inline);
             return __asm!(real)("fyl2xp1", "={st},{st(1)},{st},~{st(1)}", y, x);
         }
     }
