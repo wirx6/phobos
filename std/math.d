@@ -2537,8 +2537,10 @@ real nearbyint(real x) @trusted nothrow
  */
 version(LDC)
 {
+    version(LDC_LLVM_303) version = HAS_INTRINSIC_RINT;
+    version(LDC_LLVM_304) version = HAS_INTRINSIC_RINT;
 
-    version(LDC_LLVM_303)
+    version(HAS_INTRINSIC_RINT)
     {
         @safe pure nothrow real rint(real x)
         {
