@@ -318,7 +318,7 @@ class OutBuffer
                 va_end(ap);
             }
         }
-        version (PPC64)
+        else version (PPC64)
         {
             extern (C) void printf(string format, ...)
             {
