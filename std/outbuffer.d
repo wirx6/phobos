@@ -318,6 +318,16 @@ class OutBuffer
                 va_end(ap);
             }
         }
+        version (PPC64)
+        {
+            extern (C) void printf(string format, ...)
+            {
+                va_list ap;
+                va_start(ap, format);
+                vprintf(format, ap);
+                va_end(ap);
+            }
+        }
         else
         {
             void printf(string format, ...)
