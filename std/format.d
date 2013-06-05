@@ -3127,6 +3127,11 @@ unittest
         assert(stream.data == "1.67 -0X1.47AE147AE147BP+0 nan",
                 stream.data);
     }
+    else version (MinGW)
+    {
+        assert(stream.data == "1.67 -0XA.3D70A3D70A3D8P-3 nan",
+                stream.data);
+    }
     else
     {
         assert(stream.data == "1.67 -0X1.47AE147AE147BP+0 nan",
@@ -3152,6 +3157,7 @@ unittest
 
     formattedWrite(stream, "%a %A", 1.32, 6.78f);
     //formattedWrite(stream, "%x %X", 1.32);
+    version (MinGW) { /+ LDC_FIXME: GitHub #383 +/ } else
     assert(stream.data == "0x1.51eb851eb851fp+0 0X1.B1EB86P+2");
     stream.clear();
 
@@ -3668,7 +3674,14 @@ unittest
     {
         auto f = 3.14;
         formatReflectTest(f, "%s",  `3.14`);
-        formatReflectTest(f, "%e",  `3.140000e+00`);
+        version (MinGW)
+        {
+            formatReflectTest(f, "%e",  `3.140000e+000`);
+        }
+        else
+        {
+            formatReflectTest(f, "%e",  `3.140000e+00`);
+        }
         formatReflectTest(f, "%f",  `3.140000`);
         formatReflectTest(f, "%g",  `3.14`);
     }
@@ -5609,6 +5622,9 @@ unittest
     //else version (OSX)
     //    assert(s == "1.67 -0XA.3D70A3D70A3D8P-3 nan", s);
     //else
+    version (MinGW)
+        assert(s == "1.67 -0XA.3D70A3D70A3D8P-3 nan", s);
+    else
         assert(s == "1.67 -0X1.47AE147AE147BP+0 nan", s);
 
     s = std.string.format("%x %X", 0x1234AF, 0xAFAFAFAF);
