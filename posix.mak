@@ -27,48 +27,49 @@ QUIET:=@
 OS:=
 uname_S:=$(shell uname -s)
 ifeq (Darwin,$(uname_S))
-	OS:=osx
+     OS:=osx
 endif
 ifeq (Linux,$(uname_S))
-	OS:=linux
+     OS:=linux
 endif
 ifeq (FreeBSD,$(uname_S))
-	OS:=freebsd
+     OS:=freebsd
 endif
 ifeq (OpenBSD,$(uname_S))
-	OS:=openbsd
+     OS:=openbsd
 endif
 ifeq (Solaris,$(uname_S))
-	OS:=solaris
+     OS:=solaris
 endif
 ifeq (SunOS,$(uname_S))
-	OS:=solaris
+     OS:=solaris
 endif
 ifeq (,$(OS))
-	$(error Unrecognized or unsupported OS for uname: $(uname_S))
+     $(error Unrecognized or unsupported OS for uname: $(uname_S))
 endif
 
-# For now, 32 bit is the default model
-ifeq (,$(MODEL))
-	MODEL:=32
+MODEL:=default
+ifneq (default,$(MODEL))
+      MODEL_FLAG:=-m$(MODEL)
 endif
 
 override PIC:=$(if $(PIC),-fPIC,)
 
 # Configurable stuff that's rarely edited
+INSTALL_DIR = ../install
 DRUNTIME_PATH = ../druntime
 ZIPFILE = phobos.zip
 ROOT_OF_THEM_ALL = generated
 ROOT = $(ROOT_OF_THEM_ALL)/$(OS)/$(BUILD)/$(MODEL)
 # Documentation-related stuff
-DOCSRC = ../d-programming-language.org
+DOCSRC = ../dlang.org
 WEBSITE_DIR = ../web
 DOC_OUTPUT_DIR = $(WEBSITE_DIR)/phobos-prerelease
 BIGDOC_OUTPUT_DIR = /tmp
 SRC_DOCUMENTABLES = index.d $(addsuffix .d,$(STD_MODULES) $(STD_NET_MODULES) $(STD_DIGEST_MODULES) $(EXTRA_DOCUMENTABLES))
 STDDOC = $(DOCSRC)/std.ddoc
 BIGSTDDOC = $(DOCSRC)/std_consolidated.ddoc
-DDOCFLAGS=-m$(MODEL) -d -c -o- -version=StdDdoc -I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS)
+DDOCFLAGS=$(MODEL_FLAG) -w -d -c -o- -version=StdDdoc -I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS)
 
 # BUILD can be debug or release, but is unset by default; recursive
 # invocation will set it. See the debug and release targets below.
@@ -106,9 +107,9 @@ else
 endif
 
 # Set CFLAGS
-CFLAGS :=
+CFLAGS=
 ifneq (,$(filter cc% gcc% clang% icc% egcc%, $(CC)))
-	CFLAGS += -m$(MODEL) $(PIC)
+	CFLAGS += $(MODEL_FLAG) $(PIC)
 	ifeq ($(BUILD),debug)
 		CFLAGS += -g
 	else
@@ -117,7 +118,7 @@ ifneq (,$(filter cc% gcc% clang% icc% egcc%, $(CC)))
 endif
 
 # Set DFLAGS
-DFLAGS := -I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS) -w -d -property -m$(MODEL) $(PIC)
+DFLAGS=-I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS) -w -d $(MODEL_FLAG) $(PIC)
 ifeq ($(BUILD),debug)
 	DFLAGS += -g -debug
 else
@@ -135,16 +136,7 @@ else
 	PATHSEP:=$(shell echo "\\")
 endif
 
-# Set LINKOPTS
-ifeq (,$(findstring win,$(OS)))
-    ifeq (freebsd,$(OS))
-        LINKOPTS=-L-L$(ROOT)
-    else
-        LINKOPTS=-L-ldl -L-L$(ROOT)
-    endif
-else
-    LINKOPTS=-L/co $(LIB)
-endif
+LINKDL:=$(if $(findstring $(OS),linux),-L-ldl,)
 
 # Set DDOC, the documentation generator
 DDOC=$(DMD)
@@ -153,8 +145,8 @@ DDOC=$(DMD)
 VERSION=../dmd/VERSION
 
 # Set SONAME, the name of the shared library.
-# The awk script will produce the last 2 digits of the version string, i.e. 2.063 produces 63
-SONAME = libphobos2.so.0.$(shell awk -F. '{ print $$NF + 0 }' $(VERSION))
+# The awk script will return the second group without leading zeros of the version string, i.e. 2.063.2 produces 63
+SONAME = libphobos2.so.0.$(shell awk -F. '{ print $$2 + 0 }' $(VERSION))
 
 # Set LIB, the ultimate target
 ifeq (,$(findstring win,$(OS)))
@@ -201,7 +193,8 @@ EXTRA_MODULES += $(EXTRA_DOCUMENTABLES) $(addprefix			\
 	std/internal/digest/, sha_SSSE3 ) $(addprefix \
 	std/internal/math/, biguintcore biguintnoasm biguintx86	\
 	gammafunction errorfunction) $(addprefix std/internal/, \
-	processinit uni uni_tab)
+	processinit uni uni_tab unicode_tables \
+	unicode_comp unicode_decomp unicode_grapheme unicode_norm)
 
 # Aggregate all D modules relevant to this build
 D_MODULES = crc32 $(STD_MODULES) $(EXTRA_MODULES) $(STD_NET_MODULES) $(STD_DIGEST_MODULES)
@@ -251,6 +244,8 @@ debug :
 unittest :
 	$(MAKE) --no-print-directory -f $(MAKEFILE) OS=$(OS) MODEL=$(MODEL) BUILD=debug unittest
 	$(MAKE) --no-print-directory -f $(MAKEFILE) OS=$(OS) MODEL=$(MODEL) BUILD=release unittest
+install :
+	$(MAKE) --no-print-directory -f $(MAKEFILE) OS=$(OS) MODEL=$(MODEL) BUILD=release INSTALL_DIR=$(INSTALL_DIR) DMD=$(DMD) install2
 else
 # This branch is normally taken in recursive builds. All we need to do
 # is set the default build to $(BUILD) (which is either debug or
@@ -271,13 +266,13 @@ $(LIB) : $(OBJS) $(ALL_D_FILES) $(DRUNTIME)
 dll : $(ROOT)/libphobos2.so
 
 $(ROOT)/libphobos2.so: $(ROOT)/$(SONAME)
-	ln -s $(notdir $(LIBSO)) $@ 
+	ln -sf $(notdir $(LIBSO)) $@
 
 $(ROOT)/$(SONAME): $(LIBSO)
-	ln -s $(notdir $(LIBSO)) $@
+	ln -sf $(notdir $(LIBSO)) $@
 
 $(LIBSO): $(OBJS) $(ALL_D_FILES) $(DRUNTIME)
-	$(DMD) $(DFLAGS) -shared -debuglib= -defaultlib= -of$@ -L-soname=$(SONAME) $(DRUNTIMESO) $(D_FILES) $(OBJS)
+	$(DMD) $(DFLAGS) -shared -debuglib= -defaultlib= -of$@ -L-soname=$(SONAME) $(DRUNTIMESO) $(LINKDL) $(D_FILES) $(OBJS)
 
 ifeq (osx,$(OS))
 # Build fat library that combines the 32 bit and the 64 bit libraries
@@ -288,22 +283,42 @@ endif
 $(addprefix $(ROOT)/unittest/,$(DISABLED_TESTS)) :
 	@echo Testing $@ - disabled
 
-$(ROOT)/unittest/%$(DOTEXE) : %.d $(LIB) $(ROOT)/emptymain.d
-	@echo Testing $@
-	$(QUIET)$(DMD) $(DFLAGS) -unittest $(LINKOPTS) $(subst /,$(PATHSEP),"-of$@") \
-	 	$(ROOT)/emptymain.d $<
+UT_D_OBJS:=$(addprefix $(ROOT)/unittest/,$(addsuffix .o,$(D_MODULES)))
+$(UT_D_OBJS): $(ROOT)/unittest/%.o: $(D_FILES)
+	$(DMD) $(DFLAGS) -unittest -c -of$@ $*.d
+
+ifneq (linux,$(OS))
+
+$(ROOT)/unittest/test_runner: $(DRUNTIME_PATH)/src/test_runner.d $(UT_D_OBJS) $(OBJS) $(DRUNTIME)
+	$(DMD) $(DFLAGS) -unittest -of$@ $(DRUNTIME_PATH)/src/test_runner.d $(UT_D_OBJS) $(OBJS) $(DRUNTIME) -defaultlib= -debuglib= -L-lcurl
+
+else
+
+UT_LIBSO:=$(ROOT)/unittest/libphobos2-ut.so
+
+$(UT_LIBSO): override PIC:=-fPIC
+$(UT_LIBSO): $(UT_D_OBJS) $(OBJS) $(DRUNTIMESO)
+	$(DMD) $(DFLAGS) -shared -unittest -of$@ $(UT_D_OBJS) $(OBJS) $(DRUNTIMESO) $(LINKDL) -defaultlib= -debuglib= -L-lcurl
+
+$(ROOT)/unittest/test_runner: $(DRUNTIME_PATH)/src/test_runner.d $(UT_LIBSO)
+	$(DMD) $(DFLAGS) -of$@ $< -L$(UT_LIBSO) -defaultlib= -debuglib=
+
+endif
+
+# macro that returns the module name given the src path
+moduleName=$(subst /,.,$(1))
+
+$(ROOT)/unittest/%$(DOTEXE) : $(ROOT)/unittest/test_runner
+	@mkdir -p $(dir $@)
 # make the file very old so it builds and runs again if it fails
 	@touch -t 197001230123 $@
 # run unittest in its own directory
-	$(QUIET)$(RUN) $@
+	$(QUIET)$(RUN) $< $(call moduleName,$*)
 # succeeded, render the file new again
 	@touch $@
 
 # Disable implicit rule
 %$(DOTEXE) : %$(DOTOBJ)
-
-$(ROOT)/emptymain.d : $(ROOT)/.directory
-	@echo 'void main(){}' >$@
 
 $(ROOT)/.directory :
 	mkdir -p $(ROOT) || exists $(ROOT)
@@ -315,10 +330,17 @@ clean :
 zip :
 	zip $(ZIPFILE) $(MAKEFILE) $(ALL_D_FILES) $(ALL_C_FILES) win32.mak win64.mak
 
-install : release
-	sudo cp $(LIB) /usr/lib/
+install2 : release
+	mkdir -p $(INSTALL_DIR)/lib
+	cp $(LIB) $(INSTALL_DIR)/lib/
+	mkdir -p $(INSTALL_DIR)/import/etc
+	mkdir -p $(INSTALL_DIR)/import/std
+	cp crc32.d $(INSTALL_DIR)/import/
+	cp -r std/* $(INSTALL_DIR)/import/std/
+	cp -r etc/* $(INSTALL_DIR)/import/etc/
+	cp LICENSE_1_0.txt $(INSTALL_DIR)/phobos-LICENSE.txt
 
-$(DRUNTIME) :
+$(DRUNTIME) $(DRUNTIMESO) :
 	$(MAKE) -C $(DRUNTIME_PATH) -f posix.mak MODEL=$(MODEL)
 
 ###########################################################
