@@ -2297,7 +2297,7 @@ alias core.stdc.math.FP_ILOGBNAN FP_ILOGBNAN;
 version(LDC)
 {
 
-pure nothrow real ldexp(real n, int exp)
+@trusted pure nothrow real ldexp(real n, int exp)
 {
     return core.stdc.math.ldexpl(n, exp);
 }
