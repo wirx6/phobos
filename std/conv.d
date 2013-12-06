@@ -121,7 +121,7 @@ private
     template isNullToStr(S, T)
     {
         enum isNullToStr = isImplicitlyConvertible!(S, T) &&
-                           is(S == typeof(null)) && isExactSomeString!T;
+                           (is(Unqual!S == typeof(null))) && isExactSomeString!T;
     }
 
     template isRawStaticArray(T, A...)
@@ -305,6 +305,15 @@ template to(T)
     assert(text(null) == "null");
 }
 
+// Tests for issue 11390
+@safe pure unittest
+{
+    const(typeof(null)) ctn;
+    immutable(typeof(null)) itn;
+    assert(to!string(ctn) == "null");
+    assert(to!string(itn) == "null");
+}
+
 // Tests for issue 8729: do NOT skip leading WS
 @safe pure unittest
 {
@@ -463,7 +472,8 @@ T toImpl(T, S)(ref S s)
 When source type supports member template function opCast, is is used.
 */
 T toImpl(T, S)(S value)
-    if (is(typeof(S.init.opCast!T()) : T) &&
+    if (!isImplicitlyConvertible!(S, T) &&
+        is(typeof(S.init.opCast!T()) : T) &&
         !isExactSomeString!T)
 {
     return value.opCast!T();
@@ -3169,8 +3179,8 @@ Target parse(Target, Source)(ref Source s, dchar lbracket = '[', dchar rbracket 
     if (isExactSomeString!Source &&
         isAssociativeArray!Target && !is(Target == enum))
 {
-    alias KeyType = typeof(Target.keys[0]);
-    alias ValType = typeof(Target.values[0]);
+    alias KeyType = typeof(Target.init.keys[0]);
+    alias ValType = typeof(Target.init.values[0]);
 
     Target result;
 

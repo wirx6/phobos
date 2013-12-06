@@ -153,14 +153,19 @@ version (Posix)
     version (OSX)
     {
         extern(C) char*** _NSGetEnviron() nothrow;
-        private const(char**)* environPtr;
-        extern(C) void std_process_static_this() { environPtr = _NSGetEnviron(); }
+        private __gshared const(char**)* environPtr;
+        extern(C) void std_process_shared_static_this() { environPtr = _NSGetEnviron(); }
         const(char**) environ() @property @trusted nothrow { return *environPtr; }
     }
     else
     {
         // Made available by the C runtime:
         extern(C) extern __gshared const char** environ;
+    }
+
+    unittest
+    {
+        new Thread({assert(environ !is null);}).start();
     }
 }
 
@@ -1874,7 +1879,7 @@ for the process to complete before returning.  The functions capture
 what the child process prints to both its standard output and
 standard error streams, and return this together with its exit code.
 ---
-auto dmd = execute("dmd", "myapp.d");
+auto dmd = execute(["dmd", "myapp.d"]);
 if (dmd.status != 0) writeln("Compilation failed:\n", dmd.output);
 
 auto ls = executeShell("ls -l");
@@ -2926,7 +2931,7 @@ version (unittest)
 
 int system(string command)
 {
-    if (!command) return std.c.process.system(null);
+    if (!command.ptr) return std.c.process.system(null);
     const commandz = toStringz(command);
     immutable status = std.c.process.system(commandz);
     if (status == -1) return status;

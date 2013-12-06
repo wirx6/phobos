@@ -1,7 +1,7 @@
-![D Logo](http://dlang.org/images/dlogo.png) Phobos Runtime Library
+![D Logo](http://dlang.org/images/dlogo.png) Phobos Standard Library
 ===================================================================
 
-Phobos is the standard runtime library that comes with the
+Phobos is the standard library that comes with the
 [D Programming Language](http://dlang.org) Compiler.
 
 
@@ -13,7 +13,7 @@ Phobos is the standard runtime library that comes with the
 Download
 --------
 
-Phobos packaged together with the compiler.
+Phobos is packaged together with the compiler.
 You should
 [download the whole precompiled package](http://dlang.org/download.html).
 

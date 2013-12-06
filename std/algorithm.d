@@ -43,7 +43,10 @@ Implements algorithms oriented mainly towards processing of
 sequences. Some functions are semantic equivalents or supersets of
 those found in the $(D $(LESS)_algorithm$(GREATER)) header in $(WEB
 sgi.com/tech/stl/, Alexander Stepanov's Standard Template Library) for
-C++.
+C++. Sequences processed by these functions define range-based interfaces.
+
+$(LINK2 std_range.html, Reference on ranges)$(BR)
+$(LINK2 http://ddili.org/ders/d.en/ranges.html, Tutorial on ranges)
 
 Many functions in this module are parameterized with a function or a
 $(GLOSSARY predicate). The predicate may be passed either as a
@@ -188,7 +191,7 @@ returns a range containing the tuples $(D tuple(5, 1)),
 $(D tuple(2, 2)), and $(D tuple(3, 2)).)
 )
 $(TR $(TDNW $(LREF joiner)) $(TD $(D joiner(["hello",
-"world!"], ";")) returns a range that iterates over the characters $(D
+"world!"], "; ")) returns a range that iterates over the characters $(D
 "hello; world!"). No new string is created - the existing inputs are
 iterated.)
 )
@@ -1190,14 +1193,6 @@ void uninitializedFill(Range, Value)(Range range, Value filler)
         return fill(range, filler);
 }
 
-deprecated("Cannot reliably call uninitializedFill on range that does not expose references. Use fill instead.")
-void uninitializedFill(Range, Value)(Range range, Value filler)
-    if (isInputRange!Range && !hasLvalueElements!Range && is(typeof(range.front = filler)))
-{
-    static assert(hasElaborateAssign!T, "Cannot execute uninitializedFill a range that does not expose references, and whose objects have an elaborate assign.");
-    return fill(range, filler);
-}
-
 /**
 Initializes all elements of a range with their $(D .init)
 value. Assumes that the range does not currently contain meaningful
@@ -1924,31 +1919,43 @@ unittest
 
 // swap
 /**
-Swaps $(D lhs) and $(D rhs). See also $(XREF exception, pointsTo).
+Swaps $(D lhs) and $(D rhs). The instances $(D lhs) and $(D rhs) are moved in
+memory, without ever calling $(D opAssign), nor any other function. $(D T)
+need not be assignable at all to be swapped.
+
+If $(D lhs) and $(D rhs) reference the same instance, then nothing is done.
+
+$(D lhs) and $(D rhs) must be mutable. If $(D T) is a struct or union, then
+its fields must also all be (recursivelly) mutable.
 
 Preconditions:
 
 $(D !pointsTo(lhs, lhs) && !pointsTo(lhs, rhs) && !pointsTo(rhs, lhs)
 && !pointsTo(rhs, rhs))
+
+See_Also: 
+    $(XREF exception, pointsTo)
  */
 void swap(T)(ref T lhs, ref T rhs) @trusted pure nothrow
-if (isMutable!T && !is(typeof(T.init.proxySwap(T.init))))
+if (allMutableFields!T && !is(typeof(T.init.proxySwap(T.init))))
 {
-    static if (hasElaborateAssign!T)
+    static if (!isAssignable!T || hasElaborateAssign!T)
     {
-      if (&lhs != &rhs) {
-        // For structs with non-trivial assignment, move memory directly
-        // First check for undue aliasing
-        assert(!pointsTo(lhs, rhs) && !pointsTo(rhs, lhs)
-            && !pointsTo(lhs, lhs) && !pointsTo(rhs, rhs));
-        // Swap bits
-        ubyte[T.sizeof] t = void;
-        auto a = (cast(ubyte*) &lhs)[0 .. T.sizeof];
-        auto b = (cast(ubyte*) &rhs)[0 .. T.sizeof];
-        t[] = a[];
-        a[] = b[];
-        b[] = t[];
-      }
+        if (&lhs != &rhs)
+        {
+            // For structs with non-trivial assignment, move memory directly
+            // First check for undue aliasing
+            static if (hasIndirections!T)
+                assert(!pointsTo(lhs, rhs) && !pointsTo(rhs, lhs)
+                    && !pointsTo(lhs, lhs) && !pointsTo(rhs, rhs));
+            // Swap bits
+            ubyte[T.sizeof] t = void;
+            auto a = (cast(ubyte*) &lhs)[0 .. T.sizeof];
+            auto b = (cast(ubyte*) &rhs)[0 .. T.sizeof];
+            t[] = a[];
+            a[] = b[];
+            b[] = t[];
+        }
     }
     else
     {
@@ -1975,6 +1982,36 @@ if (isMutable!T && !is(typeof(T.init.proxySwap(T.init))))
 void swap(T)(T lhs, T rhs) if (is(typeof(T.init.proxySwap(T.init))))
 {
     lhs.proxySwap(rhs);
+}
+
+/+
+    Trait like isMutable. It also verifies that the fields inside a value
+    type aggregate are also mutable.
+
+     A "value type aggregate" is a struct or an union, but not a class nor
+     an interface.
++/
+private template allMutableFields(T)
+{
+    alias OT = OriginalType!T;
+    static if (is(OT == struct) || is(OT == union))
+        enum allMutableFields = isMutable!OT && allSatisfy!(.allMutableFields, FieldTypeTuple!OT);
+    else
+        enum allMutableFields = isMutable!OT;
+}
+
+unittest
+{
+    static assert( allMutableFields!int);
+    static assert(!allMutableFields!(const int));
+
+    class C{const int i;}
+    static assert( allMutableFields!C);
+
+    struct S1{int i;}
+    struct S2{const int i;}
+    static assert( allMutableFields!S1);
+    static assert(!allMutableFields!S2);
 }
 
 unittest
@@ -2045,6 +2082,30 @@ unittest
     //Bug# 4789
     int[1] s = [1];
     swap(s, s);
+}
+
+unittest
+{
+    static struct NoAssign
+    {
+        int i;
+        void opAssign(NoAssign) @disable;
+    }
+    auto s1 = NoAssign(1);
+    auto s2 = NoAssign(2);
+    swap(s1, s2);
+    assert(s1.i == 2);
+    assert(s2.i == 1);
+}
+
+unittest
+{
+    struct S
+    {
+        const int i;
+    }
+    S s;
+    static assert(!__traits(compiles, swap(s, s)));
 }
 
 void swapFront(R1, R2)(R1 r1, R2 r2)
@@ -2249,6 +2310,8 @@ if (is(typeof(ElementType!Range.init == Separator.init))
             {
                 _separatorLength = codeLength!(ElementEncodingType!Range)(separator);
             }
+            if (_input.empty)
+                _frontLength = _atEnd;
         }
 
         static if (isInfinite!Range)
@@ -2369,7 +2432,7 @@ unittest
     // }
     assert(equal(splitter(a, 0), w));
     a = null;
-    assert(equal(splitter(a, 0), [ (int[]).init ][]));
+    assert(equal(splitter(a, 0),  (int[][]).init));
     a = [ 0 ];
     assert(equal(splitter(a, 0), [ (int[]).init, (int[]).init ][]));
     a = [ 0, 1 ];
@@ -2540,7 +2603,7 @@ if (is(typeof(Range.init.front == Separator.init.front) : bool)
             }
         }
 
-// Bidirectional functionality as suggested by Brad Roberts.
+        // Bidirectional functionality as suggested by Brad Roberts.
         static if (isBidirectionalRange!Range && isBidirectionalRange!Separator)
         {
             @property Range back()
@@ -2656,32 +2719,48 @@ unittest
     assert(words.equal([ "i", "am", "pointing" ]));
 }
 
+///ditto
 auto splitter(alias isTerminator, Range)(Range input)
-if (is(typeof(unaryFun!(isTerminator)(ElementType!(Range).init))))
+if (isForwardRange!Range && is(typeof(unaryFun!isTerminator(input.front))))
 {
     return SplitterResult!(unaryFun!isTerminator, Range)(input);
 }
 
 private struct SplitterResult(alias isTerminator, Range)
 {
+    enum fullSlicing = (hasLength!Range && hasSlicing!Range) || isSomeString!Range;
+
     private Range _input;
-    private size_t _end;
+    private size_t _end = 0;
+    static if(!fullSlicing)
+        private Range _next;
+
+    private void findTerminator()
+    {
+        static if (fullSlicing)
+        {
+            auto r = find!isTerminator(_input.save);
+            _end = _input.length - r.length;
+        }
+        else
+            for ( _end = 0; !_next.empty ; _next.popFront)
+            {
+                if (isTerminator(_next.front))
+                    break;
+                ++_end;
+            }
+    }
 
     this(Range input)
     {
         _input = input;
-        if (_input.empty)
-        {
-            _end = _end.max;
-        }
+        static if(!fullSlicing)
+            _next = _input.save;
+
+        if (!_input.empty)
+            findTerminator();
         else
-        {
-            // Chase first terminator
-            while (_end < _input.length && !isTerminator(_input[_end]))
-            {
-                ++_end;
-            }
-        }
+            _end = size_t.max;
     }
 
     static if (isInfinite!Range)
@@ -2692,59 +2771,54 @@ private struct SplitterResult(alias isTerminator, Range)
     {
         @property bool empty()
         {
-            return _end == _end.max;
+            return _end == size_t.max;
         }
     }
 
-    @property Range front()
+    @property auto front()
     {
-        assert(!empty);
-        return _input[0 .. _end];
+        version(assert) if (empty) throw new RangeError();
+        static if (fullSlicing)
+            return _input[0 .. _end];
+        else
+            return _input.save.takeExactly(_end);
     }
 
     void popFront()
     {
-        assert(!empty);
-        if (_input.empty)
+        version(assert) if (empty) throw new RangeError();
+
+        static if (fullSlicing)
         {
-            _end = _end.max;
-            return;
-        }
-        // Skip over existing word
-        _input = _input[_end .. _input.length];
-        // Skip terminator
-        for (;;)
-        {
+            _input = _input[_end .. _input.length];
             if (_input.empty)
             {
-                // Nothing following the terminator - done
-                _end = _end.max;
+                _end = size_t.max;
                 return;
-            }
-            if (!isTerminator(_input.front))
-            {
-                // Found a legit next field
-                break;
             }
             _input.popFront();
         }
-        assert(!_input.empty && !isTerminator(_input.front));
-        // Prepare _end
-        _end = 1;
-        while (_end < _input.length && !isTerminator(_input[_end]))
+        else
         {
-            ++_end;
+            if (_next.empty)
+            {
+                _input = _next;
+                _end = size_t.max;
+                return;
+            }
+            _next.popFront();
+            _input = _next.save;
         }
+        findTerminator();
     }
 
-    static if (isForwardRange!Range)
+    @property typeof(this) save()
     {
-        @property typeof(this) save()
-        {
-            auto ret = this;
-            ret._input = _input.save;
-            return ret;
-        }
+        auto ret = this;
+        ret._input = _input.save;
+        static if (!fullSlicing)
+            ret._next = _next.save;
+        return ret;
     }
 }
 
@@ -2765,22 +2839,18 @@ unittest
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
     void compare(string sentence, string[] witness)
     {
-        foreach (word; splitter!"a == ' '"(sentence))
-        {
-            assert(word == witness.front, word);
-            witness.popFront();
-        }
-        assert(witness.empty, witness[0]);
+        auto r = splitter!"a == ' '"(sentence);
+        assert(equal(r.save, witness), format("got: %(%s, %) expected: %(%s, %)", r, witness));
     }
 
-    compare(" Mary    has a little lamb.   ",
-            ["", "Mary", "has", "a", "little", "lamb."]);
-    compare("Mary    has a little lamb.   ",
-            ["Mary", "has", "a", "little", "lamb."]);
-    compare("Mary    has a little lamb.",
-            ["Mary", "has", "a", "little", "lamb."]);
-    compare("", []);
-    compare(" ", [""]);
+    compare(" Mary  has a little lamb.   ",
+            ["", "Mary", "", "has", "a", "little", "lamb.", "", "", ""]);
+    compare("Mary  has a little lamb.   ",
+            ["Mary", "", "has", "a", "little", "lamb.", "", "", ""]);
+    compare("Mary  has a little lamb.",
+            ["Mary", "", "has", "a", "little", "lamb."]);
+    compare("", (string[]).init);
+    compare(" ", ["", ""]);
 
     static assert(isForwardRange!(typeof(splitter!"a == ' '"("ABC"))));
 
@@ -2796,10 +2866,45 @@ unittest
     }
 }
 
+unittest
+{
+    struct Entry
+    {
+        int low;
+        int high;
+        int[][] result;
+    }
+    Entry[] entries = [
+        Entry(0, 0, []),
+        Entry(0, 1, [[0]]),
+        Entry(1, 2, [[], []]),
+        Entry(2, 7, [[2], [4], [6]]),
+        Entry(1, 8, [[], [2], [4], [6], []]),
+    ];
+    foreach ( entry ; entries )
+    {
+        auto a = iota(entry.low, entry.high).filter!"true"();
+        auto b = splitter!"a%2"(a);
+        assert(equal!equal(b.save, entry.result), format("got: %(%s, %) expected: %(%s, %)", b, entry.result));
+    }
+}
+
+unittest
+{
+    //@@@6791@@@
+    assert(equal(std.array.splitter("là dove terminava quella valle"), ["là", "dove", "terminava", "quella", "valle"]));
+    assert(equal(splitter!(std.uni.isWhite)("là dove terminava quella valle"), ["là", "dove", "terminava", "quella", "valle"]));
+    assert(equal(splitter!"a=='本'"("日本語"), ["日", "語"]));
+}
+
+//@@@6730@@@ This exists already in std.array, so this declaration, at best, will only create ambiguity.
+//unfortunatly, an alias will conflict with the existing splitter in std.algorithm.
+//It needs to be removed.
+deprecated("Please use std.array.splitter for string specific splitting")
 auto splitter(Range)(Range input)
 if (isSomeString!Range)
 {
-    return splitter!(std.uni.isWhite)(input);
+    return std.array.splitter(input);
 }
 
 unittest
@@ -2811,7 +2916,7 @@ unittest
     lines[1] = "line \ttwo".dup;
     lines[2] = "yah            last   line\ryah".dup;
     foreach (line; lines) {
-       foreach (word; splitter(std.string.strip(line))) {
+       foreach (word; std.array.splitter(std.string.strip(line))) {
             if (word in dictionary) continue; // Nothing to do
             auto newID = dictionary.length;
             dictionary[to!string(word)] = cast(uint)newID;
@@ -2825,6 +2930,72 @@ unittest
     assert(dictionary["last"]== 4);
 }
 
+unittest
+{
+    // Check consistency:
+    // All flavors of split should produce the same results
+    foreach (input; [(int[]).init,
+                     [0],
+                     [0, 1, 0],
+                     [1, 1, 0, 0, 1, 1],
+                    ])
+    {
+        foreach (s; [0, 1])
+        {
+            auto result = split(input, s);
+
+            assert(equal(result, split(input, [s])), format(`"[%(%s,%)]"`, split(input, [s])));
+            //assert(equal(result, split(input, [s].filter!"true"())));                          //Not yet implemented
+            assert(equal(result, split!((a) => a == s)(input)), text(split!((a) => a == s)(input)));
+
+            //assert(equal!equal(result, split(input.filter!"true"(), s)));                      //Not yet implemented
+            //assert(equal!equal(result, split(input.filter!"true"(), [s])));                    //Not yet implemented
+            //assert(equal!equal(result, split(input.filter!"true"(), [s].filter!"true"())));    //Not yet implemented
+            assert(equal!equal(result, split!((a) => a == s)(input.filter!"true"())));
+
+            assert(equal(result, splitter(input, s)));
+            assert(equal(result, splitter(input, [s])));
+            //assert(equal(result, splitter(input, [s].filter!"true"())));                       //Not yet implemented
+            assert(equal(result, splitter!((a) => a == s)(input)));
+
+            //assert(equal!equal(result, splitter(input.filter!"true"(), s)));                   //Not yet implemented
+            //assert(equal!equal(result, splitter(input.filter!"true"(), [s])));                 //Not yet implemented
+            //assert(equal!equal(result, splitter(input.filter!"true"(), [s].filter!"true"()))); //Not yet implemented
+            assert(equal!equal(result, splitter!((a) => a == s)(input.filter!"true"())));
+        }
+    }
+    foreach (input; [string.init,
+                     " ",
+                     "  hello ",
+                     "hello   hello",
+                     " hello   what heck   this ?  "
+                    ])
+    {
+        foreach (s; [' ', 'h'])
+        {
+            auto result = split(input, s);
+
+            assert(equal(result, split(input, [s])));
+            //assert(equal(result, split(input, [s].filter!"true"())));                          //Not yet implemented
+            assert(equal(result, split!((a) => a == s)(input)));
+
+            //assert(equal!equal(result, split(input.filter!"true"(), s)));                      //Not yet implemented
+            //assert(equal!equal(result, split(input.filter!"true"(), [s])));                    //Not yet implemented
+            //assert(equal!equal(result, split(input.filter!"true"(), [s].filter!"true"())));    //Not yet implemented
+            assert(equal!equal(result, split!((a) => a == s)(input.filter!"true"())));
+
+            assert(equal(result, splitter(input, s)));
+            assert(equal(result, splitter(input, [s])));
+            //assert(equal(result, splitter(input, [s].filter!"true"())));                       //Not yet implemented
+            assert(equal(result, splitter!((a) => a == s)(input)));
+
+            //assert(equal!equal(result, splitter(input.filter!"true"(), s)));                   //Not yet implemented
+            //assert(equal!equal(result, splitter(input.filter!"true"(), [s])));                 //Not yet implemented
+            //assert(equal!equal(result, splitter(input.filter!"true"(), [s].filter!"true"()))); //Not yet implemented
+            assert(equal!equal(result, splitter!((a) => a == s)(input.filter!"true"())));
+        }
+    }
+}
 // joiner
 /**
 Lazily joins a range of ranges with a separator. The separator itself
@@ -3607,10 +3778,10 @@ assert(r == [ 1, 2, 3, 4, 5 ]);
 Finds an individual element in an input range. Elements of $(D
 haystack) are compared with $(D needle) by using predicate $(D
 pred). Performs $(BIGOH walkLength(haystack)) evaluations of $(D
-pred). See also $(WEB sgi.com/tech/stl/_find.html, STL's _find).
+pred).
 
 To _find the last occurence of $(D needle) in $(D haystack), call $(D
-find(retro(haystack), needle)). See also $(XREF range, retro).
+find(retro(haystack), needle)). See $(XREF range, retro).
 
 Params:
 
@@ -3620,7 +3791,7 @@ needle = The element searched for.
 
 Constraints:
 
-$(D isInputRange!R && is(typeof(binaryFun!pred(haystack.front, needle)
+$(D isInputRange!InputRange && is(typeof(binaryFun!pred(haystack.front, needle)
 : bool)))
 
 Returns:
@@ -3645,28 +3816,150 @@ assert(!find(a, 2).empty);      // found
 string[] s = [ "Hello", "world", "!" ];
 assert(!find!("toLower(a) == b")(s, "hello").empty);
 ----
+
+See_Also:
+     $(WEB sgi.com/tech/stl/_find.html, STL's _find)
  */
-
-R find(alias pred = "a == b", R, E)(R haystack, E needle)
-if (isInputRange!R &&
-        is(typeof(binaryFun!pred(haystack.front, needle)) : bool))
+InputRange find(alias pred = "a == b", InputRange, Element)(InputRange haystack, Element needle)
+if (isInputRange!InputRange &&
+    is (typeof(binaryFun!pred(haystack.front, needle)) : bool))
 {
-    static if (isNarrowString!R && isSomeChar!E && is(typeof(pred == "a == b")) && pred == "a == b")
-    {
-        alias Unqual!(ElementEncodingType!R) EEType;
-        EEType[EEType.sizeof == 1 ? 4 : 2] buf;
+    alias R = InputRange;
+    alias E = Element;
+    alias predFun = binaryFun!pred;
+    static if (is(typeof(pred == "a == b")))
+        enum isDefaultPred = pred == "a == b";
+    else
+        enum isDefaultPred = false;
+    enum  isIntegralNeedle = isSomeChar!E || isIntegral!E || isBoolean!E;
 
-        size_t len = encode(buf, needle);
-        return () @trusted {return std.algorithm.find!pred(haystack, cast(R)buf[0 .. len]);}();
+    alias EType  = ElementType!R;
+
+    static if (isNarrowString!R)
+    {
+        alias EEType = ElementEncodingType!R;
+        alias UEEType = Unqual!EEType;
+
+        //These are two special cases which can search without decoding the UTF stream.
+        static if (isDefaultPred && isIntegralNeedle)
+        {
+            //This special case deals with UTF8 search, when the needle
+            //is represented by a single code point.
+            //Note: "needle <= 0x7F" properly handles sign via unsigned promotion
+            static if (is(UEEType == char))
+            {
+                if (!__ctfe && canSearchInCodeUnits!char(needle))
+                {
+                    static R trustedMemchr(ref R haystack, ref E needle) @trusted nothrow pure
+                    {
+                        auto ptr = memchr(haystack.ptr, needle, haystack.length);
+                        return ptr ?
+                             haystack[ptr - haystack.ptr .. $] :
+                             haystack[$ .. $];
+                    }
+                    return trustedMemchr(haystack, needle);
+                }
+            }
+
+            //Ditto, but for UTF16
+            static if (is(UEEType == wchar))
+            {
+                if (canSearchInCodeUnits!wchar(needle))
+                {
+                    foreach (i, ref EEType e; haystack)
+                    {
+                        if (e == needle)
+                            return haystack[i .. $];
+                    }
+                    return haystack[$ .. $];
+                }
+            }
+        }
+
+        //Previous conditonal optimizations did not succeed. Fallback to
+        //unconditional implementations
+        static if (isDefaultPred)
+        {
+            //In case of default pred, it is faster to do string/string search.
+            UEEType[is(UEEType == char) ? 4 : 2] buf;
+
+            size_t len = encode(buf, needle);
+            //TODO: Make find!(R, R) @safe
+            R trustedFindRR(ref R haystack, UEEType[] needle) @trusted pure
+            {
+                return cast(R) std.algorithm.find(haystack, needle);
+            }
+            return trustedFindRR(haystack, buf[0 .. len]);
+        }
+        else
+        {
+            //Explicit pred: we must test each character by the book.
+            //We choose a manual decoding approach, because it is faster than
+            //the built-in foreach, or doing a front/popFront for-loop.
+            immutable len = haystack.length;
+            size_t i = 0, next = 0;
+            while (next < len)
+            {
+                if (predFun(decode(haystack, next), needle))
+                    return haystack[i .. $];
+                i = next;
+            }
+            return haystack[$ .. $];
+        }
+    }
+    else static if (isArray!R)
+    {
+        //10403 optimization
+        static if (isDefaultPred && isIntegral!EType && EType.sizeof == 1 && isIntegralNeedle)
+        {
+            R findHelper(ref R haystack, ref E needle) @trusted nothrow pure
+            {
+                EType* ptr = null;
+                //Note: we use "min/max" to handle sign mismatch.
+                if (min(EType.min, needle) == EType.min && max(EType.max, needle) == EType.max)
+                    ptr = cast(EType*) memchr(haystack.ptr, needle, haystack.length);
+
+                return ptr ?
+                    haystack[ptr - haystack.ptr .. $] :
+                    haystack[$ .. $];
+            }
+
+            if (!__ctfe)
+                return findHelper(haystack, needle);
+        }
+
+        //Default implementation.
+        foreach (i, ref e; haystack)
+            if (predFun(e, needle))
+                return haystack[i .. $];
+        return haystack[$ .. $];
     }
     else
     {
-        for (; !haystack.empty; haystack.popFront())
+        //Everything else. Walk.
+        for ( ; !haystack.empty; haystack.popFront() )
         {
-            if (binaryFun!pred(haystack.front, needle)) break;
+            if (predFun(haystack.front, needle))
+                break;
         }
         return haystack;
     }
+}
+///
+unittest
+{
+    assert(find("hello, world", ',') == ", world");
+    assert(find([1, 2, 3, 5], 4) == []);
+    assert(equal(find(SList!int(1, 2, 3, 4, 5)[], 4), SList!int(4, 5)[]));
+    assert(find!"a > b"([1, 2, 3, 5], 2) == [3, 5]);
+
+    auto a = [ 1, 2, 3 ];
+    assert(find(a, 5).empty);       // not found
+    assert(!find(a, 2).empty);      // found
+
+    // Case-insensitive find of a string
+    string[] s = [ "Hello", "world", "!" ];
+    assert(!find!("toLower(a) == b")(s, "hello").empty);
 }
 
 unittest
@@ -3679,6 +3972,84 @@ unittest
     assert(equal(r, SList!int(5, 7, 3)[]));
     assert(find([1, 2, 3, 5], 4).empty);
     assert(equal(find!"a>b"("hello", 'k'), "llo"));
+}
+@safe pure nothrow unittest
+{
+    int[] a1 = [1, 2, 3];
+    assert(find              ([1, 2, 3], 2));
+    assert(find!((a,b)=>a==b)([1, 2, 3], 2));
+    ubyte[] a2 = [1, 2, 3];
+    ubyte   b2 = 2;
+    assert(find              ([1, 2, 3], 2));
+    assert(find!((a,b)=>a==b)([1, 2, 3], 2));
+}
+@safe pure unittest
+{
+    foreach(R; TypeTuple!(string, wstring, dstring))
+    {
+        foreach(E; TypeTuple!(char, wchar, dchar))
+        {
+            R r1 = "hello world";
+            E e1 = 'w';
+            assert(find              ("hello world", 'w') == "world");
+            assert(find!((a,b)=>a==b)("hello world", 'w') == "world");
+            R r2 = "日c語";
+            E e2 = 'c';
+            assert(find              ("日c語", 'c') == "c語");
+            assert(find!((a,b)=>a==b)("日c語", 'c') == "c語");
+            static if (E.sizeof >= 2)
+            {
+                R r3 = "hello world";
+                E e3 = 'w';
+                assert(find              ("日本語", '本') == "本語");
+                assert(find!((a,b)=>a==b)("日本語", '本') == "本語");
+            }
+        }
+    }
+}
+unittest
+{
+    //CTFE
+    static assert (find("abc", 'b') == "bc");
+    static assert (find("日b語", 'b') == "b語");
+    static assert (find("日本語", '本') == "本語");
+    static assert (find([1, 2, 3], 2)  == [2, 3]);
+
+    int[] a1 = [1, 2, 3];
+    static assert(find              ([1, 2, 3], 2));
+    static assert(find!((a,b)=>a==b)([1, 2, 3], 2));
+    ubyte[] a2 = [1, 2, 3];
+    ubyte   b2 = 2;
+    static assert(find              ([1, 2, 3], 2));
+    static assert(find!((a,b)=>a==b)([1, 2, 3], 2));
+}
+unittest
+{
+    void dg() pure @safe nothrow
+    {
+        byte[]  sarr = [1, 2, 3, 4];
+        ubyte[] uarr = [1, 2, 3, 4];
+        foreach(arr; TypeTuple!(sarr, uarr))
+        {
+            foreach(T; TypeTuple!(byte, ubyte, int, uint))
+            {
+                assert(find(arr, cast(T) 3) == arr[2 .. $]);
+                assert(find(arr, cast(T) 9) == arr[$ .. $]);
+            }
+            assert(find(arr, 256) == arr[$ .. $]);
+        }
+    }
+    dg();
+    assertCTFEable!dg;
+}
+unittest
+{
+    // Bugzilla 11603
+    enum Foo : ubyte { A }
+    assert([Foo.A].find(Foo.A).empty == false);
+
+    ubyte x = 0;
+    assert([x].find(x).empty == false);
 }
 
 /**
@@ -4277,10 +4648,10 @@ unittest
 Advances the input range $(D haystack) by calling $(D haystack.popFront)
 until either $(D pred(haystack.front)), or $(D
 haystack.empty). Performs $(BIGOH haystack.length) evaluations of $(D
-pred). See also $(WEB sgi.com/tech/stl/find_if.html, STL's find_if).
+pred).
 
 To find the last element of a bidirectional $(D haystack) satisfying
-$(D pred), call $(D find!(pred)(retro(haystack))). See also $(XREF
+$(D pred), call $(D find!(pred)(retro(haystack))). See $(XREF
 range, retro).
 
 Example:
@@ -4292,23 +4663,71 @@ assert(find!("a > 2")(arr) == [ 3, 4, 1 ]);
 bool pred(int x) { return x + 1 > 1.5; }
 assert(find!(pred)(arr) == arr);
 ----
+
+See_Also:
+     $(WEB sgi.com/tech/stl/find_if.html, STL's find_if)
 */
-Range find(alias pred, Range)(Range haystack) if (isInputRange!(Range))
+InputRange find(alias pred, InputRange)(InputRange haystack)
+if (isInputRange!InputRange)
 {
-    alias unaryFun!(pred) predFun;
-    for (; !haystack.empty && !predFun(haystack.front); haystack.popFront())
+    alias R = InputRange;
+    alias predFun = unaryFun!pred;
+    static if (isNarrowString!R)
     {
+        immutable len = haystack.length;
+        size_t i = 0, next = 0;
+        while (next < len)
+        {
+            if (predFun(decode(haystack, next)))
+                return haystack[i .. $];
+            i = next;
+        }
+        return haystack[$ .. $];
     }
-    return haystack;
+    else static if (!isInfinite!R && hasSlicing!R && is(typeof(haystack[cast(size_t)0 .. $])))
+    {
+        size_t i = 0;
+        foreach (ref e; haystack)
+        {
+            if (predFun(e))
+                return haystack[i .. $];
+            ++i;
+        }
+        return haystack[$ .. $];
+    }
+    else
+    {
+        //standard range
+        for ( ; !haystack.empty; haystack.popFront() )
+        {
+            if (predFun(haystack.front))
+                break;
+        }
+        return haystack;
+    }
 }
 
+///
 unittest
 {
-    //scope(success) writeln("unittest @", __FILE__, ":", __LINE__, " done.");
-    int[] a = [ 1, 2, 3 ];
-    assert(find!("a > 2")(a) == [3]);
+    auto arr = [ 1, 2, 3, 4, 1 ];
+    assert(find!("a > 2")(arr) == [ 3, 4, 1 ]);
+
+    // with predicate alias
     bool pred(int x) { return x + 1 > 1.5; }
-    assert(find!(pred)(a) == a);
+    assert(find!(pred)(arr) == arr);
+}
+
+@safe pure unittest
+{
+    //scope(success) writeln("unittest @", __FILE__, ":", __LINE__, " done.");
+    int[] r = [ 1, 2, 3 ];
+    assert(find!(a=>a > 2)(r) == [3]);
+    bool pred(int x) { return x + 1 > 1.5; }
+    assert(find!(pred)(r) == r);
+
+    assert(find!(a=>a > 'v')("hello world") == "world");
+    assert(find!(a=>a%4 == 0)("日本語") == "本語");
 }
 
 // findSkip
@@ -5692,8 +6111,7 @@ unittest
 /**
 Advances $(D r) until it finds the first two adjacent elements $(D a),
 $(D b) that satisfy $(D pred(a, b)). Performs $(BIGOH r.length)
-evaluations of $(D pred). See also $(WEB
-sgi.com/tech/stl/adjacent_find.html, STL's adjacent_find).
+evaluations of $(D pred).
 
 Example:
 ----
@@ -5702,6 +6120,9 @@ auto r = findAdjacent(a);
 assert(r == [ 10, 10, 9, 8, 8, 7, 8, 9 ]);
 p = findAdjacent!("a < b")(a);
 assert(p == [ 7, 8, 9 ]);
+
+See_Also:
+     $(WEB sgi.com/tech/stl/adjacent_find.html, STL's adjacent_find)
 ----
 */
 Range findAdjacent(alias pred = "a == b", Range)(Range r)
@@ -5749,8 +6170,7 @@ unittest
 Advances $(D seq) by calling $(D seq.popFront) until either $(D
 find!(pred)(choices, seq.front)) is $(D true), or $(D seq) becomes
 empty. Performs $(BIGOH seq.length * choices.length) evaluations of
-$(D pred). See also $(WEB sgi.com/tech/stl/find_first_of.html, STL's
-find_first_of).
+$(D pred). 
 
 Example:
 ----
@@ -5758,6 +6178,9 @@ int[] a = [ -1, 0, 1, 2, 3, 4, 5 ];
 int[] b = [ 3, 1, 2 ];
 assert(findAmong(a, b) == a[2 .. $]);
 ----
+
+See_Also:
+    $(WEB sgi.com/tech/stl/find_first_of.html, STL's find_first_of)
 */
 Range1 findAmong(alias pred = "a == b", Range1, Range2)(
     Range1 seq, Range2 choices)
@@ -5960,8 +6383,7 @@ Returns $(D true) if and only if the two ranges compare equal element
 for element, according to binary predicate $(D pred). The ranges may
 have different element types, as long as $(D pred(a, b)) evaluates to
 $(D bool) for $(D a) in $(D r1) and $(D b) in $(D r2). Performs
-$(BIGOH min(r1.length, r2.length)) evaluations of $(D pred). See also
-$(WEB sgi.com/tech/stl/_equal.html, STL's _equal).
+$(BIGOH min(r1.length, r2.length)) evaluations of $(D pred). 
 
 Example:
 ----
@@ -5978,6 +6400,9 @@ assert(equal(a, b));
 double[] c = [ 1.005, 2, 4, 3];
 assert(equal!(approxEqual)(b, c));
 ----
+
+See_Also:
+    $(WEB sgi.com/tech/stl/_equal.html, STL's _equal)
 */
 bool equal(Range1, Range2)(Range1 r1, Range2 r2)
     if (isInputRange!Range1 && isInputRange!Range2
@@ -6427,25 +6852,76 @@ minCount(alias pred = "a < b", Range)(Range range)
     if (isInputRange!Range && !isInfinite!Range &&
         is(typeof(binaryFun!pred(range.front, range.front))))
 {
+    alias T  = ElementType!Range;
+    alias UT = Unqual!T;
+    alias RetType = Tuple!(T, size_t);
+
+    static assert (is(typeof(RetType(range.front, 1))),
+        format("Error: Cannot call minCount on a %s, because it is not possible "
+               "to copy the result value (a %s) into a Tuple.", Range.stringof, T.stringof));
+
     enforce(!range.empty, "Can't count elements from an empty range");
     size_t occurrences = 1;
-    auto v = range.front;
-    for (range.popFront(); !range.empty; range.popFront())
+
+    static if (isForwardRange!Range)
     {
-        auto v2 = range.front;
-        if (binaryFun!pred(v, v2)) continue;
-        if (binaryFun!pred(v2, v))
+        Range least = range.save;
+        for (range.popFront(); !range.empty; range.popFront())
         {
-            // change the min
-            move(v2, v);
-            occurrences = 1;
+            if (binaryFun!pred(least.front, range.front)) continue;
+            if (binaryFun!pred(range.front, least.front))
+            {
+                // change the min
+                least = range.save;
+                occurrences = 1;
+            }
+            else
+                ++occurrences;
         }
-        else
-        {
-            ++occurrences;
-        }
+        return RetType(least.front, occurrences);
     }
-    return typeof(return)(v, occurrences);
+    else static if (isAssignable!(UT, T) || (isAssignable!UT && !hasElaborateAssign!UT))
+    {
+        UT v = UT.init;
+        static if (isAssignable!(UT, T)) v = range.front;
+        else                             v = cast(UT)range.front;
+
+        for (range.popFront(); !range.empty; range.popFront())
+        {
+            if (binaryFun!pred(*cast(T*)&v, range.front)) continue;
+            if (binaryFun!pred(range.front, *cast(T*)&v))
+            {
+                // change the min
+                static if (isAssignable!(UT, T)) v = range.front;
+                else                             v = cast(UT)range.front; //Safe because !hasElaborateAssign!UT
+                occurrences = 1;
+            }
+            else
+                ++occurrences;
+        }
+        return RetType(*cast(T*)&v, occurrences);
+    }
+    else static if (hasLvalueElements!Range)
+    {
+        T* p = &(range.front());
+        for (range.popFront(); !range.empty; range.popFront())
+        {
+            if (binaryFun!pred(*p, range.front)) continue;
+            if (binaryFun!pred(range.front, *p))
+            {
+                // change the min
+                p = &(range.front());
+                occurrences = 1;
+            }
+            else
+                ++occurrences;
+        }
+        return RetType(*p, occurrences);
+    }
+    else
+        static assert(false,
+            format("Sorry, can't find the minCount of a %s: Don't know how "
+                   "to keep track of the smallest %s element.", Range.stringof, T.stringof));
 }
 
 unittest
@@ -6465,7 +6941,63 @@ unittest
     //test with reference ranges. Test both input and forward.
     assert(minCount(new ReferenceInputRange!int([1, 2, 1, 0, 2, 0])) == tuple(0, 2));
     assert(minCount(new ReferenceForwardRange!int([1, 2, 1, 0, 2, 0])) == tuple(0, 2));
+}
+unittest
+{
+    debug(std_algorithm) scope(success)
+        writeln("unittest @", __FILE__, ":", __LINE__, " done.");
 
+    static struct R(T) //input range
+    {
+        T[] a;
+        bool empty() @property{return a.empty;}
+        ref T front() @property{return a.front;}
+        void popFront() {a.popFront();}
+    }
+
+    immutable         a = [ 2, 3, 4, 1, 2, 4, 1, 1, 2 ];
+    R!(immutable int) b = R!(immutable int)(a);
+
+    assert(minCount(a) == tuple(1, 3));
+    assert(minCount(b) == tuple(1, 3));
+    assert(minCount!((ref immutable int a, ref immutable int b) => (a > b))(a) == tuple(4, 2));
+    assert(minCount!((ref immutable int a, ref immutable int b) => (a > b))(b) == tuple(4, 2));
+
+    immutable(int[])[] c = [ [4], [2, 4], [4], [4] ];
+    assert(minCount!("a[0] < b[0]")(c) == tuple([2, 4], 1), text(c[0]));
+
+    static struct S1
+    {
+        int i;
+    }
+    alias IS1 = immutable(S1);
+    static assert( isAssignable!S1);
+    static assert( isAssignable!(S1, IS1));
+
+    static struct S2
+    {
+        int* p;
+        this(ref immutable int i) immutable {p = &i;}
+        this(ref int i) {p = &i;}
+        @property ref inout(int) i() inout {return *p;}
+        bool opEquals(const S2 other) const {return i == other.i;}
+    }
+    alias IS2 = immutable(S2);
+    static assert( isAssignable!S2);
+    static assert(!isAssignable!(S2, IS2));
+    static assert(!hasElaborateAssign!S2);
+
+    foreach (Type; TypeTuple!(S1, immutable(S1), S2, immutable(S2)))
+    {
+        static if (is(Type == immutable)) alias V = immutable int;
+        else                              alias V = int;
+        V one = 1, two = 2;
+        auto r1 = [Type(two), Type(one), Type(one)];
+        auto r2 = R!Type(r1);
+        assert(minCount!"a.i < b.i"(r1) == tuple(Type(one), 2));
+        assert(minCount!"a.i < b.i"(r2) == tuple(Type(one), 2));
+        assert(one == 1 && two == 2);
+    }
 }
 
 // minPos
@@ -6552,8 +7084,7 @@ Sequentially compares elements in $(D r1) and $(D r2) in lockstep, and
 stops at the first mismatch (according to $(D pred), by default
 equality). Returns a tuple with the reduced ranges that start with the
 two mismatched values. Performs $(BIGOH min(r1.length, r2.length))
-evaluations of $(D pred). See also $(WEB
-sgi.com/tech/stl/_mismatch.html, STL's _mismatch).
+evaluations of $(D pred). 
 
 Example:
 ----
@@ -6563,6 +7094,9 @@ auto m = mismatch(x, y);
 assert(m[0] == x[3 .. $]);
 assert(m[1] == y[3 .. $]);
 ----
+
+See_Also:
+    $(WEB sgi.com/tech/stl/_mismatch.html, STL's _mismatch)
 */
 
 Tuple!(Range1, Range2)
@@ -6824,11 +7358,7 @@ unittest
 // copy
 /**
 Copies the content of $(D source) into $(D target) and returns the
-remaining (unfilled) part of $(D target). See also $(WEB
-sgi.com/tech/stl/_copy.html, STL's _copy). If a behavior similar to
-$(WEB sgi.com/tech/stl/copy_backward.html, STL's copy_backward) is
-needed, use $(D copy(retro(source), retro(target))). See also $(XREF
-range, retro).
+remaining (unfilled) part of $(D target).
 
 Example:
 ----
@@ -6853,16 +7383,30 @@ auto d = copy(a, b);
 To copy at most $(D n) elements from range $(D a) to range $(D b), you
 may want to use $(D copy(take(a, n), b)). To copy those elements from
 range $(D a) that satisfy predicate $(D pred) to range $(D b), you may
-want to use $(D copy(filter!(pred)(a), b)).
+want to use $(D copy(a.filter!(pred), b)).
 
 Example:
 ----
 int[] a = [ 1, 5, 8, 9, 10, 1, 2, 0 ];
 auto b = new int[a.length];
-auto c = copy(filter!("(a & 1) == 1")(a), b);
+auto c = copy(a.filter!(a => (a & 1) == 1), b);
 assert(b[0 .. $ - c.length] == [ 1, 5, 9, 1 ]);
 ----
 
+$(XREF range, retro) can be used to achieve behavior similar to
+$(WEB sgi.com/tech/stl/copy_backward.html, STL's copy_backward').
+
+Example: 
+----
+import std.algorithm, std.range;
+int[] src = [1, 2, 4];
+int[] dst = [0, 0, 0, 0, 0];
+copy(src.retro, dst.retro);
+assert(dst == [0, 0, 1, 2, 4]);
+----
+
+See_Also:
+    $(WEB sgi.com/tech/stl/_copy.html, STL's _copy)
  */
 Range2 copy(Range1, Range2)(Range1 source, Range2 target)
 if (isInputRange!Range1 && isOutputRange!(Range2, ElementType!Range1))
@@ -6999,13 +7543,16 @@ unittest
 // reverse
 /**
 Reverses $(D r) in-place.  Performs $(D r.length / 2) evaluations of $(D
-swap). See also $(WEB sgi.com/tech/stl/_reverse.html, STL's _reverse).
+swap).
 
 Example:
 ----
 int[] arr = [ 1, 2, 3 ];
 reverse(arr);
 assert(arr == [ 3, 2, 1 ]);
+
+See_Also:
+    $(WEB sgi.com/tech/stl/_reverse.html, STL's _reverse)
 ----
 */
 void reverse(Range)(Range r)
@@ -7278,7 +7825,7 @@ assert(equal(vec, [ 5, 6, 7 ]));
 ----
 
 Performs $(BIGOH max(front.length, back.length)) evaluations of $(D
-swap). See also $(WEB sgi.com/tech/stl/_rotate.html, STL's rotate).
+swap).
 
 Preconditions:
 
@@ -7290,6 +7837,9 @@ Returns:
 
 The number of elements brought to the front, i.e., the length of $(D
 back).
+
+See_Also:
+    $(WEB sgi.com/tech/stl/_rotate.html, STL's rotate)
 */
 size_t bringToFront(Range1, Range2)(Range1 front, Range2 back)
     if (isInputRange!Range1 && isForwardRange!Range2)
@@ -7598,8 +8148,17 @@ if (s != SwapStrategy.stable
         if (blackouts[right].pos + blackouts[right].len >= range.length)
         {
             range.popBackN(blackouts[right].len);
-            --right;
-            continue;
+
+            // Since right is unsigned, we must check for this case, otherwise
+            // we might turn it into size_t.max and the loop condition will not
+            // fail when it should.
+            if (right > 0)
+            {
+                --right;
+                continue;
+            }
+            else
+                break;
         }
         // Advance to next blackout on the left
         assert(blackouts[left].pos >= steps);
@@ -7723,6 +8282,14 @@ unittest
     a = iota(0, 10).array();
     assert(remove!(SwapStrategy.unstable)(a, tuple(1, 4), tuple(6, 7))
             == [0, 9, 8, 7, 4, 5]);
+}
+
+unittest
+{
+    // Issue 11576
+    auto arr = [1,2,3];
+    arr = arr.remove!(SwapStrategy.unstable)(2);
+    assert(arr == [1,2]);
 }
 
 /**
@@ -7870,9 +8437,6 @@ swap). The unstable version computes the minimum possible evaluations
 of $(D swap) (roughly half of those performed by the semistable
 version).
 
-See also STL's $(WEB sgi.com/tech/stl/_partition.html, _partition) and
-$(WEB sgi.com/tech/stl/stable_partition.html, stable_partition).
-
 Returns:
 
 The right part of $(D r) after partitioning.
@@ -7918,6 +8482,10 @@ r = partition!(fun, SwapStrategy.semistable)(arr);
 // Now arr is [4 5 6 7 8 9 10 2 3 1] and r points to 2
 assert(arr == [4, 5, 6, 7, 8, 9, 10, 2, 3, 1] && r == arr[7 .. $]);
 ----
+
+See_Also:
+    STL's $(WEB sgi.com/tech/stl/_partition.html, _partition)$(BR)
+    STL's $(WEB sgi.com/tech/stl/stable_partition.html, stable_partition)
 */
 Range partition(alias predicate,
         SwapStrategy ss = SwapStrategy.unstable, Range)(Range r)
@@ -8192,8 +8760,7 @@ and all elements $(D e2) from $(D r[nth]) to $(D r[r.length]) satisfy
 $(D !less(e2, r[nth])). Effectively, it finds the nth smallest
 (according to $(D less)) elements in $(D r). Performs an expected
 $(BIGOH r.length) (if unstable) or $(BIGOH r.length * log(r.length))
-(if stable) evaluations of $(D less) and $(D swap). See also $(WEB
-sgi.com/tech/stl/nth_element.html, STL's nth_element).
+(if stable) evaluations of $(D less) and $(D swap). 
 
 If $(D n >= r.length), the algorithm has no effect.
 
@@ -8207,6 +8774,9 @@ assert(v[n] == 9);
 topN!("a < b")(v, n);
 assert(v[n] == 9);
 ----
+
+See_Also:
+    $(WEB sgi.com/tech/stl/nth_element.html, STL's nth_element)
 
 BUGS:
 
@@ -8347,8 +8917,8 @@ unittest
 Sorts a random-access range according to the predicate $(D less). Performs
 $(BIGOH r.length * log(r.length)) (if unstable) or $(BIGOH r.length *
 log(r.length) * log(r.length)) (if stable) evaluations of $(D less)
-and $(D swap). See also STL's $(WEB sgi.com/tech/stl/_sort.html, _sort)
-and $(WEB sgi.com/tech/stl/stable_sort.html, stable_sort).
+and $(D swap).
+
 
 $(D sort) returns a $(XREF range, SortedRange) over the original range, which
 functions that can take advantage of sorted data can then use to know that the
@@ -8357,8 +8927,21 @@ wrapper around the original range, so both it and the original range are sorted,
 but other functions won't know that the original range has been sorted, whereas
 they $(I can) know that $(XREF range, SortedRange) has been sorted.
 
+
+The predicate is expected to satisfy certain rules in order for $(D sort) to
+behave as expected - otherwise, the program may fail on certain inputs (but not
+others) when not compiled in release mode, due to the cursory $(D assumeSorted)
+check. Specifically, $(D sort) expects $(D less(a,b) && less(b,c)) to imply
+$(D less(a,c)) (transitivity), and, conversely, $(D !less(a,b) && !less(b,c)) to
+imply $(D !less(a,c)). Note that the default predicate ($(D "a < b")) does not
+always satisfy these conditions for floating point types, because the expression
+will always be $(D false) when either $(D a) or $(D b) is NaN.
+
+
 See_Also:
-    $(XREF range, assumeSorted)
+    $(XREF range, assumeSorted)$(BR)
+    STL's $(WEB sgi.com/tech/stl/_sort.html, _sort)$(BR)
+    $(WEB sgi.com/tech/stl/stable_sort.html, stable_sort)
 
 Remark: Stable sort is implementated as Timsort, the original code at
 $(WEB github.com/Xinok/XSort, XSort) by Xinok, public domain.

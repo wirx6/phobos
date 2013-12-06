@@ -127,6 +127,8 @@ else version (MICROSOFT_STDIO)
         int _fgetwc_nolock(_iobuf*);
         void _lock_file(FILE*);
         void _unlock_file(FILE*);
+        int _setmode(int, int);
+        int _fileno(FILE*);
     }
     alias _fputc_nolock FPUTC;
     alias _fputwc_nolock FPUTWC;
@@ -135,6 +137,9 @@ else version (MICROSOFT_STDIO)
 
     alias _lock_file FLOCK;
     alias _unlock_file FUNLOCK;
+
+    enum _O_BINARY = 0x8000;
+
 }
 else version (GCC_IO)
 {
@@ -1979,7 +1984,8 @@ void writeln(T...)(T args)
     }
     else static if (T.length == 1 &&
                     is(typeof(args[0]) : const(char)[]) &&
-                    !is(typeof(args[0]) == enum) && !is(typeof(args[0]) == typeof(null)) &&
+                    !is(typeof(args[0]) == enum) &&
+                    !is(Unqual!(typeof(args[0])) == typeof(null)) &&
                     !isAggregateType!(typeof(args[0])))
     {
         // Specialization for strings - a very frequent case
@@ -2792,7 +2798,7 @@ Initialize with a message and an error code. */
         // If e is 0, we don't use the system error message.  (The message
         // is "Success", which is rather pointless for an exception.)
         super(e == 0 ? message
-                     : (message ? message ~ " (" ~ sysmsg ~ ")" : sysmsg));
+                     : (message.ptr ? message ~ " (" ~ sysmsg ~ ")" : sysmsg));
     }
 
 /** Convenience functions that throw an $(D StdioException). */

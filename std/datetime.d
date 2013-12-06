@@ -28181,9 +28181,9 @@ public:
                 try
                 {
                     auto currYear = (cast(Date)Clock.currTime()).year;
-                    auto janOffset = SysTime(Date(currYear, 1, 4), this).stdTime -
+                    auto janOffset = SysTime(Date(currYear, 1, 4), cast(immutable)this).stdTime -
                                      SysTime(Date(currYear, 1, 4), UTC()).stdTime;
-                    auto julyOffset = SysTime(Date(currYear, 7, 4), this).stdTime -
+                    auto julyOffset = SysTime(Date(currYear, 7, 4), cast(immutable)this).stdTime -
                                       SysTime(Date(currYear, 7, 4), UTC()).stdTime;
 
                     return janOffset != julyOffset;
@@ -32244,7 +32244,7 @@ version(testStdDateTime) @safe unittest
 {
     @safe static void func(TickDuration td)
     {
-        assert(td.to!("seconds", real)() <>= 0);
+        assert(!td.to!("seconds", real)().isNaN);
     }
 
     auto mt = measureTime!(func)();
@@ -32262,7 +32262,7 @@ version(testStdDateTime) unittest
 {
     static void func(TickDuration td)
     {
-        assert(td.to!("seconds", real)() <>= 0);
+        assert(!td.to!("seconds", real)().isNaN);
     }
 
     auto mt = measureTime!(func)();
