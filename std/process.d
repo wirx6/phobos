@@ -1883,7 +1883,7 @@ auto dmd = execute(["dmd", "myapp.d"]);
 if (dmd.status != 0) writeln("Compilation failed:\n", dmd.output);
 
 auto ls = executeShell("ls -l");
-if (ls.status == 0) writeln("Failed to retrieve file listing");
+if (ls.status != 0) writeln("Failed to retrieve file listing");
 else writeln(ls.output);
 ---
 
@@ -3243,7 +3243,11 @@ unittest
     //assert(x == "wyda" ~ newline, text(x.length));
 
     import std.exception;  // Issue 9444
-    assertThrown!ErrnoException(shell("qwertyuiop09813478"));
+    version(windows)
+        string cmd = "98c10ec7e253a11cdff45f807b984a81 2>NUL";
+    else
+        string cmd = "98c10ec7e253a11cdff45f807b984a81 2>/dev/null";
+    assertThrown!ErrnoException(shell(cmd));
 }
 
 /**
