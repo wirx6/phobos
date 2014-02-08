@@ -585,7 +585,8 @@ unittest
     auto z2 = conj(z1);
     char[] s2;
     z2.toString((const(char)[] c) { s2 ~= c; }, "%.8e");
-    assert (s2 == "1.23456789e-01-1.23456789e-01i");
+    version (MinGW) assert (s2 == "1.23456789e-001-1.23456789e-001i");
+    else assert (s2 == "1.23456789e-01-1.23456789e-01i");
     assert (s2 == z2.toString(null, "%.8e"));
 }
 
