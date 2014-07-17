@@ -2998,7 +2998,7 @@ real hypot(real x, real y) @safe pure nothrow
     static assert(2*(SQRTMAX/2)*(SQRTMAX/2) <= real.max);
 
     // Proves that sqrt(real.max) ~~  0.5/sqrt(real.min_normal)
-    static assert(real.min_normal*real.max > 2 && real.min_normal*real.max <= 4);
+    version(LDC) {} else static assert(real.min_normal*real.max > 2 && real.min_normal*real.max <= 4);
 
     real u = fabs(x);
     real v = fabs(y);
