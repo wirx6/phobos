@@ -524,7 +524,7 @@ unittest
 version(LDC)
 {
 
-@safe pure nothrow real cos(real x)
+real cos(real x) @safe pure nothrow @nogc
 {
     return llvm_cos(x);
 }
@@ -552,7 +552,7 @@ real cos(real x) @safe pure nothrow @nogc;       /* intrinsic */
 version(LDC)
 {
 
-@safe pure nothrow @nogc real sin(real x)
+real sin(real x) @safe pure nothrow @nogc
 {
     return llvm_sin(x);
 }
@@ -1352,7 +1352,7 @@ unittest
 version(LDC)
 {
 
-@nogc @trusted pure nothrow long rndtol(real x)
+long rndtol(real x) @nogc @trusted pure nothrow
 {
    return core.stdc.math.llroundl(x);
 }
@@ -2440,7 +2440,7 @@ alias FP_ILOGBNAN = core.stdc.math.FP_ILOGBNAN;
 version(LDC)
 {
 
-@nogc @trusted pure nothrow real ldexp(real n, int exp)
+real ldexp(real n, int exp) @nogc @trusted pure nothrow
 {
     return core.stdc.math.ldexpl(n, exp);
 }
@@ -2453,7 +2453,10 @@ real ldexp(real n, int exp) @nogc @safe pure nothrow;    /* intrinsic */
 
 }
 
-unittest {
+unittest
+{
+    static if (floatTraits!(real).realFormat == RealFormat.ieeeExtended)
+    {
         assert(ldexp(1, -16384) == 0x1p-16384L);
         assert(ldexp(1, -16382) == 0x1p-16382L);
         int x;
@@ -3100,7 +3103,7 @@ real cbrt(real x) @trusted nothrow @nogc
 
 version(LDC)
 {
-    @trusted pure nothrow @nogc real fabs(real x)
+    real fabs(real x) @trusted pure nothrow @nogc
     {
         version(D_InlineAsm_X86)
         {
@@ -3474,7 +3477,7 @@ version(LDC)
     }
     else
     {
-        pure nothrow real @nogc rint(real x)
+        pure nothrow @nogc real rint(real x)
         {
             asm
             {
