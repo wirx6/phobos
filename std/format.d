@@ -5193,10 +5193,12 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
           {
             //doFormat(putc, (&valti)[0 .. 1], p);
             version(SimpleVaargs)
-                argptr = p;
-            else version(Win64)
-                argptr = p;
-            else version(X86_64)
+            {
+                argptr = cast(va_list)p;
+                formatArg('s');
+                p += tsize;
+            }
+            else version (Win64)
             {
                 void* q = void;
 
@@ -5554,9 +5556,9 @@ void doFormat(void delegate(dchar) putc, TypeInfo[] arguments, va_list argptr)
                         argptr += (tis.tsize + 3) & ~3;
                     } else {
                         auto talign = tis.talign();
-                        void* ap = cast(void*)argptr;
-                        auto p = cast(void*)((cast(size_t)ap + talign - 1) & ~(talign - 1));
-                        argptr = cast(void*)(cast(size_t)p + ((tis.tsize() + size_t.sizeof - 1) & ~(size_t.sizeof - 1)));
+                        char* ap = cast(char*)argptr;
+                        auto p = cast(char*)((cast(size_t)ap + talign - 1) & ~(talign - 1));
+                        argptr = cast(char*)(cast(size_t)p + ((tis.tsize() + size_t.sizeof - 1) & ~(size_t.sizeof - 1)));
                         s = tis.xtoString(p);
                     }
                 }
