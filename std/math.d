@@ -80,6 +80,7 @@ version(LDC)
 version(DigitalMars)
 {
     version = INLINE_YL2X;        // x87 has opcodes for these
+    version = INLINE_POLY;
 }
 
 version (X86)
@@ -5651,7 +5652,7 @@ in
 }
 body
 {
-    version (D_InlineAsm_X86)
+    version (INLINE_POLY)
     {
         version (RealPacked)
         {
