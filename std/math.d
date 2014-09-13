@@ -90,6 +90,7 @@ version(LDC)
 version(DigitalMars)
 {
     version = INLINE_YL2X;        // x87 has opcodes for these
+    version = INLINE_POLY;
 }
 
 version (X86)
@@ -3467,6 +3468,7 @@ version(LDC)
     version(LDC_LLVM_303) version = HAS_INTRINSIC_RINT;
     version(LDC_LLVM_304) version = HAS_INTRINSIC_RINT;
     version(LDC_LLVM_305) version = HAS_INTRINSIC_RINT;
+    version(LDC_LLVM_306) version = HAS_INTRINSIC_RINT;
 
     version(HAS_INTRINSIC_RINT)
     {
@@ -6117,7 +6119,7 @@ in
 }
 body
 {
-    version (D_InlineAsm_X86)
+    version (INLINE_POLY)
     {
         version (RealPacked)
         {
