@@ -3935,7 +3935,7 @@ private:
         {
             version (X86_Any)
             {
-                __asm("fnclex", "");
+                __asm("fnclex", "~{fpsw}");
             }
             else version (PPC_Any)
             {
@@ -4325,7 +4325,7 @@ private:
         {
             version (X86_Any)
             {
-                __asm("fclex", "");
+                __asm("fclex", "~{fpsw}");
             }
             else version (PPC_Any)
             {
@@ -4358,11 +4358,11 @@ private:
 
             version (X86)
             {
-                __asm("xor %eax, %eax; fstcw $0", "=*m,~{eax}", &cont);
+                __asm("xor %eax, %eax; fstcw $0", "=*m,~{eax},~{flags}", &cont);
             }
             else version (X86_64)
             {
-                __asm("xor %rax, %rax; fstcw $0", "=*m,~{rax}", &cont);
+                __asm("xor %rax, %rax; fstcw $0", "=*m,~{rax},~{flags}", &cont);
             }
             else version (PPC_Any)
             {
@@ -4410,11 +4410,11 @@ private:
         {
             version (X86)
             {
-                __asm("fclex; fldcw $0", "=*m", &newState);
+                __asm("fclex; fldcw $0", "=*m,~{fpsw}", &newState);
             }
             else version (X86_64)
             {
-                __asm("fclex; fldcw $0", "=*m", &newState);
+                __asm("fclex; fldcw $0", "=*m,~{fpsw}", &newState);
             }
             else version (PPC_Any)
             {
