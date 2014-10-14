@@ -3888,6 +3888,14 @@ private:
             {
                 return __asm!uint("cfc1 $0, 31", "=r");
             }
+            else version (ARM_SoftFloat)
+            {
+                return 0;
+            }
+            else version (ARM)
+            {
+                return __asm!uint("vmrs $0, FPSCR; and $0, $0, #0x1F", "=r");
+            }
             else
                 assert(0, "Not yet supported");
         }
@@ -3945,6 +3953,15 @@ private:
             {
                 __asm("cfc1 $0, 31 ; andi $0, $0, 0xFFFFFF80 ; ctc1 $0, 31", "~r");
             }
+            else version (ARM_SoftFloat)
+            {
+            }
+            else version (ARM)
+            {
+                uint old = getIeeeFlags();
+                old &= ~0b11111; // http://infocenter.arm.com/help/topic/com.arm.doc.ddi0408i/Chdfifdc.html
+                __asm("vmsr FPSCR, $0", "r", old);
+            }
             else
                 assert(0, "Not yet supported");
         }
@@ -3999,10 +4016,9 @@ else version(MIPS_Any)
 {
     version = IeeeFlagsSupport;
 }
-else version(ARM)
+else version (ARM)
 {
-    // Not yet supported!
-    //version = IeeeFlagsSupport;
+    version = IeeeFlagsSupport;
 }
 
 /// Set all of the floating-point status flags to false.
@@ -4335,6 +4351,15 @@ private:
             {
                 __asm("cfc1 $0, 31 ; andi $0, $0, 0xFFFFF07F ; ctc1 $0, 31", "~r");
             }
+            else version (ARM_SoftFloat)
+            {
+            }
+            else version (ARM)
+            {
+                ControlState old = getControlState();
+                old &= ~0b11111; // http://infocenter.arm.com/help/topic/com.arm.doc.ddi0408i/Chdfifdc.html
+                __asm("vmsr FPSCR, $0", "r", old);
+            }
             else
                 assert(0, "Not yet supported");
         }
@@ -4372,6 +4397,14 @@ private:
             else version (MIPS_Any)
             {
                 cont = __asm("cfc1 $0, 31", "=r");
+            }
+            else version (ARM_SoftFloat)
+            {
+                return 0;
+            }
+            else version (ARM)
+            {
+                cont = __asm!ControlState("vmrs $0, FPSCR", "=r");
             }
             else
                 assert(0, "Not yet supported");
@@ -4425,6 +4458,13 @@ private:
             else version (MIPS_Any)
             {
                 __asm("ctc1 $0, 31", "r", newState);
+            }
+            else version (ARM_SoftFloat)
+            {
+            }
+            else version (ARM)
+            {
+                __asm("vmsr FPSCR, $0", "r", newState);
             }
             else
                 assert(0, "Not yet supported");
