@@ -83,8 +83,12 @@ version(LDC)
 {
     import ldc.intrinsics;
     import ldc.llvmasm;
-    version(X86) version = INLINE_YL2X;
-    version(X86_64) version = INLINE_YL2X;
+
+    static if (real.sizeof > double.sizeof)
+    {
+        version(X86)    version = INLINE_YL2X;
+        version(X86_64) version = INLINE_YL2X;
+    }
 }
 
 version(DigitalMars)
@@ -107,6 +111,15 @@ version(D_InlineAsm_X86)
 else version(D_InlineAsm_X86_64)
 {
     version = InlineAsm_X86_Any;
+}
+
+// define InlineAsm*_X87 versions if real is defined as 80-bit x87
+static if (real.sizeof > double.sizeof)
+{
+    version (D_InlineAsm_X86)     version = InlineAsm_X86_X87;
+    version (D_InlineAsm_X86_64)  version = InlineAsm_X86_64_X87;
+    version (InlineAsm_X86_Any)   version = InlineAsm_X86_Any_X87;
+    version (Win64_DMD_InlineAsm) version = Win64_DMD_InlineAsm_X87;
 }
 
 
@@ -633,7 +646,7 @@ real tan(real x) @trusted pure nothrow @nogc
     {
         return core.stdc.math.tanl(x);
     }
-    else version(D_InlineAsm_X86)
+    else version(InlineAsm_X86_X87)
     {
     asm
     {
@@ -667,7 +680,7 @@ trigerr:
 
 Lret: {}
     }
-    else version(D_InlineAsm_X86_64)
+    else version(InlineAsm_X86_64_X87)
     {
         version (Win64)
         {
@@ -907,7 +920,7 @@ unittest
  */
 real atan(real x) @safe pure nothrow @nogc
 {
-    version(InlineAsm_X86_Any)
+    version(InlineAsm_X86_Any_X87)
     {
         return atan2(x, 1.0L);
     }
@@ -1006,7 +1019,7 @@ unittest
  */
 real atan2(real y, real x) @trusted pure nothrow @nogc
 {
-    version(InlineAsm_X86_Any)
+    version(InlineAsm_X86_Any_X87)
     {
         version (Win64)
         {
@@ -1468,14 +1481,14 @@ creal sqrt(creal z) @nogc @safe pure nothrow
  */
 real exp(real x) @trusted pure nothrow @nogc
 {
-    version(D_InlineAsm_X86)
+    version(InlineAsm_X86_X87)
     {
         //  e^^x = 2^^(LOG2E*x)
         // (This is valid because the overflow & underflow limits for exp
         // and exp2 are so similar).
         return exp2(LOG2E*x);
     }
-    else version(D_InlineAsm_X86_64)
+    else version(InlineAsm_X86_64_X87)
     {
         //  e^^x = 2^^(LOG2E*x)
         // (This is valid because the overflow & underflow limits for exp
@@ -1562,7 +1575,7 @@ unittest
  */
 real expm1(real x) @trusted pure nothrow @nogc
 {
-    version(D_InlineAsm_X86)
+    version(InlineAsm_X86_X87)
     {
         enum PARAMSIZE = (real.sizeof+3)&(0xFFFF_FFFC); // always a multiple of 4
         asm
@@ -1634,7 +1647,7 @@ L_largenegative:
             ret PARAMSIZE;
         }
     }
-    else version(D_InlineAsm_X86_64)
+    else version(InlineAsm_X86_64_X87)
     {
         asm
         {
@@ -1793,7 +1806,7 @@ L_largenegative:
  */
 real exp2(real x) @nogc @trusted pure nothrow
 {
-    version(D_InlineAsm_X86)
+    version(InlineAsm_X86_X87)
     {
         enum PARAMSIZE = (real.sizeof+3)&(0xFFFF_FFFC); // always a multiple of 4
 
@@ -1879,7 +1892,7 @@ L_was_nan:
             ret PARAMSIZE;
         }
     }
-    else version(D_InlineAsm_X86_64)
+    else version(InlineAsm_X86_64_X87)
     {
         asm
         {
@@ -2117,7 +2130,7 @@ creal expi(real y) @trusted pure nothrow @nogc
     // LDC_FIXME: Temporarily disabled because of precision-related issues
     // in the unittest below.
 version (none) {
-    version(InlineAsm_X86_Any)
+    version(InlineAsm_X86_Any_X87)
     {
         version (Win64)
         {
@@ -2390,7 +2403,7 @@ unittest
  */
 int ilogb(real x)  @trusted nothrow @nogc
 {
-    version (Win64_DMD_InlineAsm)
+    version (Win64_DMD_InlineAsm_X87)
     {
         asm
         {
@@ -2954,7 +2967,7 @@ unittest
  */
 real logb(real x) @trusted nothrow @nogc
 {
-    version (Win64_DMD_InlineAsm)
+    version (Win64_DMD_InlineAsm_X87)
     {
         asm
         {
@@ -3030,7 +3043,7 @@ real modf(real x, ref real i) @trusted nothrow @nogc
 real scalbn(real x, int n) @trusted nothrow @nogc
 {
     // FIXME: LDC fild not really supported
-    /*version(InlineAsm_X86_Any) {
+    /*version(InlineAsm_X86_Any_X87) {
         // scalbnl is not supported on DMD-Windows, so use asm.
         version (Win64)
         {
@@ -3103,7 +3116,7 @@ version(LDC)
 {
     real fabs(real x) @trusted pure nothrow @nogc
     {
-        version(D_InlineAsm_X86)
+        version(InlineAsm_X86_X87)
         {
             asm {
                 fld x;
@@ -3235,7 +3248,7 @@ unittest
  */
 real ceil(real x) @trusted pure nothrow @nogc
 {
-    version (Win64_DMD_InlineAsm)
+    version (Win64_DMD_InlineAsm_X87)
     {
         asm
         {
@@ -3344,7 +3357,7 @@ unittest
  */
 real floor(real x) @trusted pure nothrow @nogc
 {
-    version (Win64_DMD_InlineAsm)
+    version (Win64_DMD_InlineAsm_X87)
     {
         asm
         {
@@ -3509,7 +3522,7 @@ real rint(real x) @safe pure nothrow @nogc;      /* intrinsic */
 long lrint(real x) @trusted pure nothrow @nogc
 {
     // FIXME: LDC fistp not really supported
-    /*version(InlineAsm_X86_Any)
+    /*version(InlineAsm_X86_Any_X87)
     {
         version (Win64)
         {
@@ -3705,7 +3718,7 @@ version(Posix)
  */
 real trunc(real x) @trusted nothrow @nogc
 {
-    version (Win64_DMD_InlineAsm)
+    version (Win64_DMD_InlineAsm_X87)
     {
         asm
         {
