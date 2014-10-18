@@ -89,6 +89,26 @@ version(LDC)
         version(X86)    version = INLINE_YL2X;
         version(X86_64) version = INLINE_YL2X;
     }
+
+    version(LDC_LLVM_303)
+    {
+        version = INTRINSICS_FROM_303;
+    }
+    version(LDC_LLVM_304)
+    {
+        version = INTRINSICS_FROM_303;
+        version = INTRINSICS_FROM_304;
+    }
+    version(LDC_LLVM_305)
+    {
+        version = INTRINSICS_FROM_303;
+        version = INTRINSICS_FROM_304;
+    }
+    version(LDC_LLVM_306)
+    {
+        version = INTRINSICS_FROM_303;
+        version = INTRINSICS_FROM_304;
+    }
 }
 
 version(DigitalMars)
@@ -534,12 +554,7 @@ unittest
 
 version(LDC)
 {
-
-real cos(real x) @safe pure nothrow @nogc
-{
-    return llvm_cos(x);
-}
-
+    real cos(real x) @safe pure nothrow @nogc { return llvm_cos(x); }
 }
 else
 {
@@ -562,12 +577,7 @@ real cos(real x) @safe pure nothrow @nogc;       /* intrinsic */
  */
 version(LDC)
 {
-
-real sin(real x) @safe pure nothrow @nogc
-{
-    return llvm_sin(x);
-}
-
+    real sin(real x) @safe pure nothrow @nogc { return llvm_sin(x); }
 }
 else
 {
@@ -1395,17 +1405,11 @@ extern (C) real rndtonl(real x);
  *      $(TR $(TD +$(INFIN)) $(TD +$(INFIN)) $(TD no))
  *      )
  */
-
 version(LDC)
 {
-
-@safe pure nothrow @nogc
-{
-    float sqrt(float x) { return llvm_sqrt(x); }
-    double sqrt(double x)  { return llvm_sqrt(x); }
-    real sqrt(real x) { return llvm_sqrt(x); }
-}
-
+    real   sqrt(real   x) @safe pure nothrow @nogc { return llvm_sqrt(x); }
+    double sqrt(double x) @safe pure nothrow @nogc { return llvm_sqrt(x); }
+    float  sqrt(float  x) @safe pure nothrow @nogc { return llvm_sqrt(x); }
 }
 else
 {
@@ -1479,6 +1483,15 @@ creal sqrt(creal z) @nogc @safe pure nothrow
  *    $(TR $(TD $(NAN))        $(TD $(NAN))    )
  *  )
  */
+version(LDC)
+{
+    real   exp(real   x) @safe pure nothrow @nogc { return llvm_exp(x); }
+    double exp(double x) @safe pure nothrow @nogc { return llvm_exp(x); }
+    float  exp(float  x) @safe pure nothrow @nogc { return llvm_exp(x); }
+}
+else
+{
+
 real exp(real x) @trusted pure nothrow @nogc
 {
     version(InlineAsm_X86_X87)
@@ -1552,6 +1565,8 @@ double exp(double x) @safe pure nothrow @nogc  { return exp(cast(real)x); }
 
 /// ditto
 float exp(float x)  @safe pure nothrow @nogc   { return exp(cast(real)x); }
+
+}
 
 unittest
 {
@@ -1804,6 +1819,13 @@ L_largenegative:
  *    $(TR $(TD $(NAN))        $(TD $(NAN))    )
  *  )
  */
+version(INTRINSICS_FROM_303)
+{
+    real exp2(real x) @safe pure nothrow @nogc { return llvm_exp2(x); }
+}
+else
+{
+
 real exp2(real x) @nogc @trusted pure nothrow
 {
     version(InlineAsm_X86_X87)
@@ -2036,6 +2058,8 @@ L_was_nan:
 
         return x;
     }
+}
+
 }
 
 unittest
@@ -2541,6 +2565,12 @@ unittest
  *    $(TR $(TD +$(INFIN))    $(TD +$(INFIN)) $(TD no)           $(TD no))
  *    )
  */
+version(LDC)
+{
+    real log(real x) @safe pure nothrow @nogc { return llvm_log(x); }
+}
+else
+{
 
 real log(real x) @safe pure nothrow @nogc
 {
@@ -2653,6 +2683,8 @@ real log(real x) @safe pure nothrow @nogc
     }
 }
 
+}
+
 unittest
 {
     assert(log(E) == 1);
@@ -2668,6 +2700,12 @@ unittest
  *      $(TR $(TD +$(INFIN))    $(TD +$(INFIN)) $(TD no)           $(TD no))
  *      )
  */
+version(INTRINSICS_FROM_303)
+{
+    real log10(real x) @safe pure nothrow @nogc { return llvm_log10(x); }
+}
+else
+{
 
 real log10(real x) @safe pure nothrow @nogc
 {
@@ -2784,6 +2822,8 @@ real log10(real x) @safe pure nothrow @nogc
     }
 }
 
+}
+
 unittest
 {
     //printf("%Lg\n", log10(1000) - 3);
@@ -2840,6 +2880,13 @@ real log1p(real x) @safe pure nothrow @nogc
  *  $(TR $(TD +$(INFIN))    $(TD +$(INFIN)) $(TD no)           $(TD no) )
  *  )
  */
+version(INTRINSICS_FROM_303)
+{
+    real log2(real x) @safe pure nothrow @nogc { return llvm_log2(x); }
+}
+else
+{
+
 real log2(real x) @safe pure nothrow @nogc
 {
     version (INLINE_YL2X)
@@ -2944,6 +2991,8 @@ real log2(real x) @safe pure nothrow @nogc
 
         return z;
     }
+}
+
 }
 
 unittest
@@ -3111,23 +3160,9 @@ real cbrt(real x) @trusted nothrow @nogc
  *      $(TR $(TD $(PLUSMN)$(INFIN)) $(TD +$(INFIN)) )
  *      )
  */
-
 version(LDC)
 {
-    real fabs(real x) @trusted pure nothrow @nogc
-    {
-        version(InlineAsm_X86_X87)
-        {
-            asm {
-                fld x;
-                fabs;
-            }
-        }
-        else
-        {
-            return fabsl(x);
-        }
-    }
+    real fabs(real x) @safe pure nothrow @nogc { return llvm_fabs(x); }
 }
 else
 {
@@ -3246,6 +3281,15 @@ unittest
  * Returns the value of x rounded upward to the next integer
  * (toward positive infinity).
  */
+version(INTRINSICS_FROM_303)
+{
+    real   ceil(real   x) @safe pure nothrow @nogc { return llvm_ceil(x); }
+    double ceil(double x) @safe pure nothrow @nogc { return llvm_ceil(x); }
+    float  ceil(float  x) @safe pure nothrow @nogc { return llvm_ceil(x); }
+}
+else
+{
+
 real ceil(real x) @trusted pure nothrow @nogc
 {
     version (Win64_DMD_InlineAsm_X87)
@@ -3351,10 +3395,21 @@ unittest
     assert(isNaN(ceil(float.init)));
 }
 
+}
+
 /**************************************
  * Returns the value of x rounded downward to the next integer
  * (toward negative infinity).
  */
+version(LDC)
+{
+    real   floor(real   x) @safe pure nothrow @nogc { return llvm_floor(x); }
+    double floor(double x) @safe pure nothrow @nogc { return llvm_floor(x); }
+    float  floor(float  x) @safe pure nothrow @nogc { return llvm_floor(x); }
+}
+else
+{
+
 real floor(real x) @trusted pure nothrow @nogc
 {
     version (Win64_DMD_InlineAsm_X87)
@@ -3448,6 +3503,8 @@ unittest
     assert(isNaN(floor(float.init)));
 }
 
+}
+
 /******************************************
  * Rounds x to the nearest integer value, using the current rounding
  * mode.
@@ -3455,6 +3512,13 @@ unittest
  * Unlike the rint functions, nearbyint does not raise the
  * FE_INEXACT exception.
  */
+version(INTRINSICS_FROM_303)
+{
+    real nearbyint(real x) @safe nothrow @nogc { return llvm_nearbyint(x); }
+}
+else
+{
+
 real nearbyint(real x) @trusted nothrow @nogc
 {
     version (Win64)
@@ -3463,6 +3527,8 @@ real nearbyint(real x) @trusted nothrow @nogc
     }
     else
         return core.stdc.math.nearbyintl(x);
+}
+
 }
 
 /**********************************
@@ -3475,20 +3541,13 @@ real nearbyint(real x) @trusted nothrow @nogc
  */
 version(LDC)
 {
-    version(LDC_LLVM_303) version = HAS_INTRINSIC_RINT;
-    version(LDC_LLVM_304) version = HAS_INTRINSIC_RINT;
-    version(LDC_LLVM_305) version = HAS_INTRINSIC_RINT;
-    version(LDC_LLVM_306) version = HAS_INTRINSIC_RINT;
-
-    version(HAS_INTRINSIC_RINT)
+    version(INTRINSICS_FROM_303)
     {
-        @safe pure nothrow @nogc real rint(real x)
-        {
-            return llvm_rint(x);
-        }
+        real rint(real x) @safe pure nothrow @nogc { return llvm_rint(x); }
     }
     else
     {
+        // BUG: assumes x86/x64 architecture
         pure nothrow @nogc real rint(real x)
         {
             asm
@@ -3500,7 +3559,6 @@ version(LDC)
             return x;
         }
     }
-
 }
 else
 {
@@ -3673,6 +3731,13 @@ unittest
  * If the fractional part of x is exactly 0.5, the return value is rounded to
  * the even integer.
  */
+version(INTRINSICS_FROM_304)
+{
+    real round(real x) @safe nothrow @nogc { return llvm_round(x); }
+}
+else
+{
+
 real round(real x) @trusted nothrow @nogc
 {
     version (Win64)
@@ -3685,6 +3750,8 @@ real round(real x) @trusted nothrow @nogc
     }
     else
         return core.stdc.math.roundl(x);
+}
+
 }
 
 /**********************************************
@@ -3716,6 +3783,13 @@ version(Posix)
  *
  * This is also known as "chop" rounding.
  */
+version(INTRINSICS_FROM_303)
+{
+    real trunc(real x) @safe pure nothrow @nogc { return llvm_trunc(x); }
+}
+else
+{
+
 real trunc(real x) @trusted nothrow @nogc
 {
     version (Win64_DMD_InlineAsm_X87)
@@ -3739,6 +3813,8 @@ real trunc(real x) @trusted nothrow @nogc
     }
     else
         return core.stdc.math.truncl(x);
+}
+
 }
 
 /****************************************************
@@ -4967,6 +5043,16 @@ int signbit(X)(X x) @nogc @trusted pure nothrow
 /*********************************
  * Return a value composed of to with from's sign bit.
  */
+version(INTRINSICS_FROM_304)
+{
+    R copysign(R, X)(R to, X from) @safe pure nothrow @nogc
+        if (isFloatingPoint!(R) && isFloatingPoint!(X))
+    {
+        return llvm_copysign(to, cast(R) from);
+    }
+}
+else
+{
 
 R copysign(R, X)(R to, X from) @trusted pure nothrow @nogc
     if (isFloatingPoint!(R) && isFloatingPoint!(X))
@@ -4979,6 +5065,8 @@ R copysign(R, X)(R to, X from) @trusted pure nothrow @nogc
     pto[T.SIGNPOS_BYTE] &= 0x7F;
     pto[T.SIGNPOS_BYTE] |= pfrom[F.SIGNPOS_BYTE] & 0x80;
     return to;
+}
+
 }
 
 // ditto
@@ -5560,7 +5648,16 @@ real fmin(real x, real y) @safe pure nothrow @nogc { return x < y ? x : y; }
  *
  * BUGS: Not currently implemented - rounds twice.
  */
+version(LDC)
+{
+    real fma(real x, real y, real z) @safe pure nothrow @nogc { return llvm_fma(x, y, z); }
+}
+else
+{
+
 real fma(real x, real y, real z) @safe pure nothrow @nogc { return (x * y) + z; }
+
+}
 
 /*******************************************************************
  * Compute the value of x $(SUP n), where n is an integer
@@ -5775,6 +5872,17 @@ real pow(I, F)(I x, F y) @nogc @trusted pure nothrow
  *      $(TD no)        $(TD no) )
  * )
  */
+version(LDC)
+{
+    Unqual!(Largest!(F, G)) pow(F, G)(F x, G y) @safe pure nothrow @nogc
+        if (isFloatingPoint!(F) && isFloatingPoint!(G))
+    {
+        alias Float = typeof(return);
+        return llvm_pow!(Float)(x, y);
+    }
+}
+else
+{
 
 Unqual!(Largest!(F, G)) pow(F, G)(F x, G y) @nogc @trusted pure nothrow
     if (isFloatingPoint!(F) && isFloatingPoint!(G))
@@ -5957,6 +6065,8 @@ Unqual!(Largest!(F, G)) pow(F, G)(F x, G y) @nogc @trusted pure nothrow
         }
     }
     return impl(x, y);
+}
+
 }
 
 unittest
