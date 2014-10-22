@@ -5864,8 +5864,8 @@ real pow(I, F)(I x, F y) @nogc @trusted pure nothrow
  *      $(TD no)        $(TD no) )
  * )
  */
-version(LDC)
-{
+version(none)
+{   // FIXME: Use of this LLVM intrinsic causes a unit test failure
     Unqual!(Largest!(F, G)) pow(F, G)(F x, G y) @safe pure nothrow @nogc
         if (isFloatingPoint!(F) && isFloatingPoint!(G))
     {
