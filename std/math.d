@@ -92,26 +92,6 @@ version(LDC)
         version(X86)    version = INLINE_YL2X;
         version(X86_64) version = INLINE_YL2X;
     }
-
-    version(LDC_LLVM_303)
-    {
-        version = INTRINSICS_FROM_303;
-    }
-    version(LDC_LLVM_304)
-    {
-        version = INTRINSICS_FROM_303;
-        version = INTRINSICS_FROM_304;
-    }
-    version(LDC_LLVM_305)
-    {
-        version = INTRINSICS_FROM_303;
-        version = INTRINSICS_FROM_304;
-    }
-    version(LDC_LLVM_306)
-    {
-        version = INTRINSICS_FROM_303;
-        version = INTRINSICS_FROM_304;
-    }
 }
 
 version(DigitalMars)
@@ -1823,7 +1803,7 @@ L_largenegative:
  *    $(TR $(TD $(NAN))        $(TD $(NAN))    )
  *  )
  */
-version(INTRINSICS_FROM_303)
+static if (__traits(compiles, llvm_exp2(3.14L)))
 {
     real exp2(real x) @safe pure nothrow @nogc { return llvm_exp2(x); }
 }
@@ -2704,7 +2684,7 @@ unittest
  *      $(TR $(TD +$(INFIN))    $(TD +$(INFIN)) $(TD no)           $(TD no))
  *      )
  */
-version(INTRINSICS_FROM_303)
+static if (__traits(compiles, llvm_log10(3.14L)))
 {
     real log10(real x) @safe pure nothrow @nogc { return llvm_log10(x); }
 }
@@ -2884,7 +2864,7 @@ real log1p(real x) @safe pure nothrow @nogc
  *  $(TR $(TD +$(INFIN))    $(TD +$(INFIN)) $(TD no)           $(TD no) )
  *  )
  */
-version(INTRINSICS_FROM_303)
+static if (__traits(compiles, llvm_log2(3.14L)))
 {
     real log2(real x) @safe pure nothrow @nogc { return llvm_log2(x); }
 }
@@ -3164,15 +3144,23 @@ real cbrt(real x) @trusted nothrow @nogc
  *      $(TR $(TD $(PLUSMN)$(INFIN)) $(TD +$(INFIN)) )
  *      )
  */
-version(LDC)
+static if (__traits(compiles, llvm_fabs(3.14L)))
 {
     real fabs(real x) @safe pure nothrow @nogc { return llvm_fabs(x); }
 }
 else
 {
-
-real fabs(real x) @safe pure nothrow @nogc;      /* intrinsic */
-
+version(LDC)
+{
+    real fabs(real x) @safe pure nothrow @nogc
+    {
+        return copysign(x, 1.0L);
+    }
+}
+else
+{
+    real fabs(real x) @safe pure nothrow @nogc;      /* intrinsic */
+}
 }
 
 
@@ -3285,7 +3273,7 @@ unittest
  * Returns the value of x rounded upward to the next integer
  * (toward positive infinity).
  */
-version(INTRINSICS_FROM_303)
+static if (__traits(compiles, llvm_ceil(3.14L)))
 {
     real   ceil(real   x) @safe pure nothrow @nogc { return llvm_ceil(x); }
     double ceil(double x) @safe pure nothrow @nogc { return llvm_ceil(x); }
@@ -3405,7 +3393,7 @@ unittest
  * Returns the value of x rounded downward to the next integer
  * (toward negative infinity).
  */
-version(LDC)
+static if (__traits(compiles, llvm_floor(3.14L)))
 {
     real   floor(real   x) @safe pure nothrow @nogc { return llvm_floor(x); }
     double floor(double x) @safe pure nothrow @nogc { return llvm_floor(x); }
@@ -3516,7 +3504,7 @@ unittest
  * Unlike the rint functions, nearbyint does not raise the
  * FE_INEXACT exception.
  */
-version(INTRINSICS_FROM_303)
+static if (__traits(compiles, llvm_nearbyint(3.14L)))
 {
     real nearbyint(real x) @safe nothrow @nogc { return llvm_nearbyint(x); }
 }
@@ -3545,7 +3533,7 @@ real nearbyint(real x) @trusted nothrow @nogc
  */
 version(LDC)
 {
-    version(INTRINSICS_FROM_303)
+    static if (__traits(compiles, llvm_rint(3.14L)))
     {
         real rint(real x) @safe pure nothrow @nogc { return llvm_rint(x); }
     }
@@ -3735,7 +3723,7 @@ unittest
  * If the fractional part of x is exactly 0.5, the return value is rounded to
  * the even integer.
  */
-version(INTRINSICS_FROM_304)
+static if (__traits(compiles, llvm_round(3.14L)))
 {
     real round(real x) @safe nothrow @nogc { return llvm_round(x); }
 }
@@ -3787,7 +3775,7 @@ version(Posix)
  *
  * This is also known as "chop" rounding.
  */
-version(INTRINSICS_FROM_303)
+static if (__traits(compiles, llvm_trunc(3.14L)))
 {
     real trunc(real x) @safe pure nothrow @nogc { return llvm_trunc(x); }
 }
@@ -5047,7 +5035,7 @@ int signbit(X)(X x) @nogc @trusted pure nothrow
 /*********************************
  * Return a value composed of to with from's sign bit.
  */
-version(INTRINSICS_FROM_304)
+static if (__traits(compiles, llvm_copysign(3.14L, -1.0L)))
 {
     R copysign(R, X)(R to, X from) @safe pure nothrow @nogc
         if (isFloatingPoint!(R) && isFloatingPoint!(X))
