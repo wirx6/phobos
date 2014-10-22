@@ -1467,8 +1467,8 @@ creal sqrt(creal z) @nogc @safe pure nothrow
  *    $(TR $(TD $(NAN))        $(TD $(NAN))    )
  *  )
  */
-version(LDC)
-{
+version(none)
+{   // FIXME: Use of this LLVM intrinsic causes a unit test failure
     real   exp(real   x) @safe pure nothrow @nogc { return llvm_exp(x); }
     double exp(double x) @safe pure nothrow @nogc { return llvm_exp(x); }
     float  exp(float  x) @safe pure nothrow @nogc { return llvm_exp(x); }
