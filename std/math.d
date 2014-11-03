@@ -1803,9 +1803,12 @@ L_largenegative:
  *    $(TR $(TD $(NAN))        $(TD $(NAN))    )
  *  )
  */
+version(none)
+{   // FIXME: Use of this LLVM intrinsic causes a unit test failure
 static if (__traits(compiles, llvm_exp2(3.14L)))
 {
     real exp2(real x) @safe pure nothrow @nogc { return llvm_exp2(x); }
+}
 }
 else
 {
