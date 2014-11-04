@@ -246,6 +246,13 @@ else version (MINGW_IO)
     int fgetc_unlocked(_iobuf* fp) { return fgetc(cast(shared) fp); }
     int fgetwc_unlocked(_iobuf* fp) { return fgetwc(cast(shared) fp); }
 
+    extern (C)
+    {
+      nothrow:
+      @nogc:
+        FILE* _fdopen(int, const (char)*);
+    }
+
     alias fputc_unlocked FPUTC;
     alias fputwc_unlocked FPUTWC;
     alias fgetc_unlocked FGETC;
@@ -255,9 +262,16 @@ else version (MINGW_IO)
     alias funlockfile FUNLOCK;
 
     alias setmode _setmode;
-    enum _O_BINARY = 0x8000;
     int _fileno(FILE* f) { return f._file; }
     alias _fileno fileno;
+
+    enum
+    {
+        _O_RDONLY = 0x0000,
+        _O_APPEND = 0x0008,
+        _O_TEXT   = 0x4000,
+        _O_BINARY = 0x8000,
+    }
 }
 else version (GENERIC_IO)
 {
