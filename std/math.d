@@ -1,6 +1,56 @@
 // Written in the D programming language.
 
 /**
+$(SCRIPT inhibitQuickIndex = 1;)
+
+$(BOOKTABLE ,
+$(TR $(TH Category) $(TH Members) )
+$(TR $(TDNW Constants) $(TD
+    $(MYREF E) $(MYREF PI) $(MYREF PI_2) $(MYREF PI_4) $(MYREF M_1_PI)
+    $(MYREF M_2_PI) $(MYREF M_2_SQRTPI) $(MYREF LN10) $(MYREF LN2)
+    $(MYREF LOG2) $(MYREF LOG2E) $(MYREF LOG2T) $(MYREF LOG10E)
+    $(MYREF SQRT2) $(MYREF SQRT1_2)
+))
+$(TR $(TDNW Classics) $(TD
+ $(MYREF abs) $(MYREF fabs) $(MYREF sqrt) $(MYREF cbrt) $(MYREF hypot) $(MYREF poly)
+))
+$(TR $(TDNW Trigonometry) $(TD
+    $(MYREF sin) $(MYREF cos) $(MYREF tan) $(MYREF asin) $(MYREF acos)
+    $(MYREF atan) $(MYREF atan2) $(MYREF sinh) $(MYREF cosh) $(MYREF tanh)
+    $(MYREF asinh) $(MYREF acosh) $(MYREF atanh) $(MYREF expi)
+))
+$(TR $(TDNW Rounding) $(TD
+    $(MYREF ceil) $(MYREF floor) $(MYREF round) $(MYREF lround)
+    $(MYREF trunc) $(MYREF rint) $(MYREF lrint) $(MYREF nearbyint)
+    $(MYREF rndtol)
+))
+$(TR $(TDNW Exponentiation & Logarithms) $(TD
+    $(MYREF pow) $(MYREF exp) $(MYREF exp2) $(MYREF expm1) $(MYREF ldexp)
+    $(MYREF frexp) $(MYREF log) $(MYREF log2) $(MYREF log10) $(MYREF logb)
+    $(MYREF ilogb) $(MYREF log1p) $(MYREF scalbn)
+))
+$(TR $(TDNW Modulus) $(TD
+    $(MYREF fmod) $(MYREF modf) $(MYREF remainder)
+))
+$(TR $(TDNW Floating-point operations) $(TD
+    $(MYREF approxEqual) $(MYREF feqrel) $(MYREF fdim) $(MYREF fmax)
+    $(MYREF fmin) $(MYREF fma) $(MYREF nextDown) $(MYREF nextUp)
+    $(MYREF nextafter) $(MYREF NaN) $(MYREF getNaNPayload)
+))
+$(TR $(TDNW Introspection) $(TD
+    $(MYREF isFinite) $(MYREF isIdentical) $(MYREF isInfinity) $(MYREF isNaN)
+    $(MYREF isNormal) $(MYREF isSubnormal) $(MYREF signbit) $(MYREF sgn)
+    $(MYREF copysign)
+))
+$(TR $(TDNW Complex Numbers) $(TD
+  $(MYREF abs) $(MYREF conj) $(MYREF sin) $(MYREF cos) $(MYREF expi)
+))
+$(TR $(TDNW Hardware Control) $(TD
+    $(MYREF IeeeFlags) $(MYREF FloatingPointControl)
+))
+)
+
+
  * Elementary mathematical functions
  *
  * Contains the elementary mathematical functions (powers, roots,
@@ -29,6 +79,7 @@
  *
  * Macros:
  *      WIKI = Phobos/StdMath
+ *      MYREF = <font face='Consolas, "Bitstream Vera Sans Mono", "Andale Mono", Monaco, "DejaVu Sans Mono", "Lucida Console", monospace'><a href="#.$1">$1</a>&nbsp;</font>
  *
  *      TABLE_SV = <table border=1 cellpadding=4 cellspacing=0>
  *              <caption>Special Values</caption>
@@ -63,7 +114,7 @@
  *            reserves the right to distribute this material elsewhere under different
  *            copying permissions.  These modifications are distributed here under
  *            the following terms:
- * License:   <a href="http://www.boost.org/LICENSE_1_0.txt">Boost License 1.0</a>.
+ * License:   $(WEB www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * Authors:   $(WEB digitalmars.com, Walter Bright), Don Clugston,
  *            Conversion of CEPHES math library to D by Iain Buclaw
  * Source: $(PHOBOSSRC std/_math.d)
@@ -148,14 +199,14 @@ version(unittest)
         if (signbit(x) != signbit(y))
             return 0;
 
-        if (isinf(x) && isinf(y))
+        if (isInfinity(x) && isInfinity(y))
             return 1;
-        if (isinf(x) || isinf(y))
+        if (isInfinity(x) || isInfinity(y))
             return 0;
 
-        if (isnan(x) && isnan(y))
+        if (isNaN(x) && isNaN(y))
             return 1;
-        if (isnan(x) || isnan(y))
+        if (isNaN(x) || isNaN(y))
             return 0;
 
         char[30] bufx;
@@ -164,7 +215,7 @@ version(unittest)
 
         int ix;
         int iy;
-        version(Win64)
+        version(CRuntime_Microsoft)
             alias double real_t;
         else
             alias real real_t;
@@ -642,7 +693,7 @@ real tan(real x) @trusted pure nothrow @nogc
     }
     else version(InlineAsm_X86_X87)
     {
-    asm
+    asm pure nothrow @nogc
     {
         fld     x[EBP]                  ; // load theta
         fxam                            ; // test for oddball values
@@ -678,19 +729,19 @@ Lret: {}
     {
         version (Win64)
         {
-            asm
+            asm pure nothrow @nogc
             {
                 fld     real ptr [RCX]  ; // load theta
             }
         }
         else
         {
-            asm
+            asm pure nothrow @nogc
             {
                 fld     x[RBP]          ; // load theta
             }
         }
-    asm
+    asm pure nothrow @nogc
     {
         fxam                            ; // test for oddball values
         fstsw   AX                      ;
@@ -1017,7 +1068,7 @@ real atan2(real y, real x) @trusted pure nothrow @nogc
     {
         version (Win64)
         {
-            asm {
+            asm pure nothrow @nogc {
                 naked;
                 fld real ptr [RDX]; // y
                 fld real ptr [RCX]; // x
@@ -1027,7 +1078,7 @@ real atan2(real y, real x) @trusted pure nothrow @nogc
         }
         else
         {
-            asm {
+            asm pure nothrow @nogc {
                 fld y;
                 fld x;
                 fpatan;
@@ -1577,7 +1628,7 @@ real expm1(real x) @trusted pure nothrow @nogc
     version(InlineAsm_X86_X87)
     {
         enum PARAMSIZE = (real.sizeof+3)&(0xFFFF_FFFC); // always a multiple of 4
-        asm
+        asm pure nothrow @nogc
         {
             /*  expm1() for x87 80-bit reals, IEEE754-2008 conformant.
              * Author: Don Clugston.
@@ -1648,13 +1699,13 @@ L_largenegative:
     }
     else version(InlineAsm_X86_64_X87)
     {
-        asm
+        asm pure nothrow @nogc
         {
             naked;
         }
         version (Win64)
         {
-            asm
+            asm pure nothrow @nogc
             {
                 fld   real ptr [RCX];  // x
                 mov   AX,[RCX+8];      // AX = exponent and sign
@@ -1662,13 +1713,13 @@ L_largenegative:
         }
         else
         {
-            asm
+            asm pure nothrow @nogc
             {
                 fld   real ptr [RSP+8];  // x
                 mov   AX,[RSP+8+8];      // AX = exponent and sign
             }
         }
-        asm
+        asm pure nothrow @nogc
         {
             /*  expm1() for x87 80-bit reals, IEEE754-2008 conformant.
              * Author: Don Clugston.
@@ -1819,7 +1870,7 @@ real exp2(real x) @nogc @trusted pure nothrow
     {
         enum PARAMSIZE = (real.sizeof+3)&(0xFFFF_FFFC); // always a multiple of 4
 
-        asm
+        asm pure nothrow @nogc
         {
             /*  exp2() for x87 80-bit reals, IEEE754-2008 conformant.
              * Author: Don Clugston.
@@ -1903,13 +1954,13 @@ L_was_nan:
     }
     else version(InlineAsm_X86_64_X87)
     {
-        asm
+        asm pure nothrow @nogc
         {
             naked;
         }
         version (Win64)
         {
-            asm
+            asm pure nothrow @nogc
             {
                 fld   real ptr [RCX];  // x
                 mov   AX,[RCX+8];      // AX = exponent and sign
@@ -1917,13 +1968,13 @@ L_was_nan:
         }
         else
         {
-            asm
+            asm pure nothrow @nogc
             {
                 fld   real ptr [RSP+8];  // x
                 mov   AX,[RSP+8+8];      // AX = exponent and sign
             }
         }
-        asm
+        asm pure nothrow @nogc
         {
             /*  exp2() for x87 80-bit reals, IEEE754-2008 conformant.
              * Author: Don Clugston.
@@ -2054,7 +2105,7 @@ unittest
     assert(feqrel(exp2(0.5L), SQRT2) >= real.mant_dig -1);
     assert(exp2(8.0L) == 256.0);
     assert(exp2(-9.0L)== 1.0L/512.0);
-    version(Win64) {} else // aexp2/exp2f/exp2l not implemented
+    version(CRuntime_Microsoft) {} else // aexp2/exp2f/exp2l not implemented
     {
         assert( core.stdc.math.exp2f(0.0f) == 1 );
         assert( core.stdc.math.exp2 (0.0)  == 1 );
@@ -2145,7 +2196,7 @@ version (none) {
     {
         version (Win64)
         {
-            asm
+            asm pure nothrow @nogc
             {
                 naked;
                 fld     real ptr [ECX];
@@ -2156,7 +2207,7 @@ version (none) {
         }
         else
         {
-            asm
+            asm pure nothrow @nogc
             {
                 fld y;
                 fsincos;
@@ -2195,12 +2246,18 @@ unittest
  *      $(TR $(TD $(PLUSMN)$(NAN)) $(TD $(PLUSMN)$(NAN)) $(TD int.min))
  *      )
  */
-real frexp(real value, out int exp) @trusted pure nothrow @nogc
+
+
+T frexp(T)(T value, out int exp) @trusted pure nothrow @nogc
+    if(isFloatingPoint!T)
 {
     ushort* vu = cast(ushort*)&value;
-    long* vl = cast(long*)&value;
+    static if(is(Unqual!T == float))
+        int* vi = cast(int*)&value;
+    else
+        long* vl = cast(long*)&value;
     int ex;
-    alias F = floatTraits!(real);
+    alias F = floatTraits!T;
 
     ex = vu[F.EXPPOS_SHORT] & F.EXPMASK;
     static if (F.realFormat == RealFormat.ieeeExtended)
@@ -2237,7 +2294,7 @@ real frexp(real value, out int exp) @trusted pure nothrow @nogc
 
             value *= F.RECIP_EPSILON;
             ex = vu[F.EXPPOS_SHORT] & F.EXPMASK;
-            exp = ex - F.EXPBIAS - real.mant_dig + 1;
+            exp = ex - F.EXPBIAS - T.mant_dig + 1;
             vu[F.EXPPOS_SHORT] = (0x8000 & vu[F.EXPPOS_SHORT]) | 0x3FFE;
         }
         return value;
@@ -2279,7 +2336,7 @@ real frexp(real value, out int exp) @trusted pure nothrow @nogc
             // subnormal
             value *= F.RECIP_EPSILON;
             ex = vu[F.EXPPOS_SHORT] & F.EXPMASK;
-            exp = ex - F.EXPBIAS - real.mant_dig + 1;
+            exp = ex - F.EXPBIAS - T.mant_dig + 1;
             vu[F.EXPPOS_SHORT] =
                 cast(ushort)((0x8000 & vu[F.EXPPOS_SHORT]) | 0x3FFE);
         }
@@ -2319,9 +2376,49 @@ real frexp(real value, out int exp) @trusted pure nothrow @nogc
             // subnormal
             value *= F.RECIP_EPSILON;
             ex = vu[F.EXPPOS_SHORT] & F.EXPMASK;
-            exp = ((ex - F.EXPBIAS)>> 4) - real.mant_dig + 1;
+            exp = ((ex - F.EXPBIAS) >> 4) - T.mant_dig + 1;
             vu[F.EXPPOS_SHORT] =
                 cast(ushort)((0x8000 & vu[F.EXPPOS_SHORT]) | 0x3FE0);
+        }
+        return value;
+    }
+    else static if (F.realFormat == RealFormat.ieeeSingle)
+    {
+        if (ex) // If exponent is non-zero
+        {
+            if (ex == F.EXPMASK)   // infinity or NaN
+            {
+                if (*vi == 0x7F80_0000)  // positive infinity
+                {
+                    exp = int.max;
+                }
+                else if (*vi == 0xFF80_0000) // negative infinity
+                    exp = int.min;
+                else
+                { // NaN
+                    *vi |= 0x0040_0000;  // convert NaNS to NaNQ
+                    exp = int.min;
+                }
+            }
+            else
+            {
+                exp = (ex - F.EXPBIAS) >> 7;
+                vu[F.EXPPOS_SHORT] = cast(ushort)((0x807F & vu[F.EXPPOS_SHORT]) | 0x3F00);
+            }
+        }
+        else if (!(*vi & 0x7FFF_FFFF))
+        {
+            // value is +-0.0
+            exp = 0;
+        }
+        else
+        {
+            // subnormal
+            value *= F.RECIP_EPSILON;
+            ex = vu[F.EXPPOS_SHORT] & F.EXPMASK;
+            exp = ((ex - F.EXPBIAS) >> 7) - T.mant_dig + 1;
+            vu[F.EXPPOS_SHORT] =
+                cast(ushort)((0x8000 & vu[F.EXPPOS_SHORT]) | 0x3F00);
         }
         return value;
     }
@@ -2334,53 +2431,55 @@ real frexp(real value, out int exp) @trusted pure nothrow @nogc
 
 unittest
 {
-    static real[3][] vals =     // x,frexp,exp
-        [
-         [0.0,   0.0,    0],
-         [-0.0,  -0.0,   0],
-         [1.0,   .5,     1],
-         [-1.0,  -.5,    1],
-         [2.0,   .5,     2],
-         [double.min_normal/2.0, .5, -1022],
-         [real.infinity,real.infinity,int.max],
-         [-real.infinity,-real.infinity,int.min],
-         [real.nan,real.nan,int.min],
-         [-real.nan,-real.nan,int.min],
-         ];
+    import std.typetuple, std.typecons;
 
-    int i;
-
-    for (i = 0; i < vals.length; i++)
+    foreach (T; TypeTuple!(real, double, float))
     {
-        real x = vals[i][0];
-        real e = vals[i][1];
-        int exp = cast(int)vals[i][2];
-        int eptr;
-        real v = frexp(x, eptr);
-        assert(isIdentical(e, v));
-        assert(exp == eptr);
+        Tuple!(T, T, int)[] vals =     // x,frexp,exp
+            [
+             tuple(T(0.0),  T( 0.0 ), 0),
+             tuple(T(-0.0), T( -0.0), 0),
+             tuple(T(1.0),  T( .5  ), 1),
+             tuple(T(-1.0), T( -.5 ), 1),
+             tuple(T(2.0),  T( .5  ), 2),
+             tuple(T(float.min_normal/2.0f), T(.5), -126),
+             tuple(T.infinity, T.infinity, int.max),
+             tuple(-T.infinity, -T.infinity, int.min),
+             tuple(T.nan, T.nan, int.min),
+             tuple(-T.nan, -T.nan, int.min),
+             ];
 
-    }
-
-    static if (floatTraits!(real).realFormat == RealFormat.ieeeExtended)
-    {
-        static real[3][] extendedvals = [ // x,frexp,exp
-                                          [0x1.a5f1c2eb3fe4efp+73L, 0x1.A5F1C2EB3FE4EFp-1L,   74],    // normal
-                                          [0x1.fa01712e8f0471ap-1064L,  0x1.fa01712e8f0471ap-1L,     -1063],
-                                          [real.min_normal,  .5,     -16381],
-                                          [real.min_normal/2.0L, .5,     -16382]    // subnormal
-                                           ];
-
-        for (i = 0; i < extendedvals.length; i++)
+        foreach(elem; vals)
         {
-            real x = extendedvals[i][0];
-            real e = extendedvals[i][1];
-            int exp = cast(int)extendedvals[i][2];
+            T x = elem[0];
+            T e = elem[1];
+            int exp = elem[2];
             int eptr;
-            real v = frexp(x, eptr);
+            T v = frexp(x, eptr);
             assert(isIdentical(e, v));
             assert(exp == eptr);
 
+        }
+
+        static if (floatTraits!(T).realFormat == RealFormat.ieeeExtended)
+        {
+            static T[3][] extendedvals = [ // x,frexp,exp
+                [0x1.a5f1c2eb3fe4efp+73L, 0x1.A5F1C2EB3FE4EFp-1L,   74],    // normal
+                [0x1.fa01712e8f0471ap-1064L,  0x1.fa01712e8f0471ap-1L,     -1063],
+                [T.min_normal,  .5,     -16381],
+                [T.min_normal/2.0L, .5,     -16382]    // subnormal
+            ];
+            foreach(elem; extendedvals)
+            {
+                T x = elem[0];
+                T e = elem[1];
+                int exp = cast(int)elem[2];
+                int eptr;
+                T v = frexp(x, eptr);
+                assert(isIdentical(e, v));
+                assert(exp == eptr);
+
+            }
         }
     }
 }
@@ -2388,8 +2487,8 @@ unittest
 unittest
 {
     int exp;
-    real mantissa = frexp(123.456, exp);
-    assert(equalsDigit(mantissa * pow(2.0L, cast(real)exp), 123.456, 19));
+    real mantissa = frexp(123.456L, exp);
+    assert(equalsDigit(mantissa * pow(2.0L, cast(real)exp), 123.456L, 19));
 
     assert(frexp(-real.nan, exp) && exp == int.min);
     assert(frexp(real.nan, exp) && exp == int.min);
@@ -2416,7 +2515,7 @@ int ilogb(real x)  @trusted nothrow @nogc
 {
     version (Win64_DMD_InlineAsm_X87)
     {
-        asm
+        asm pure nothrow @nogc
         {
             naked                       ;
             fld     real ptr [RCX]      ;
@@ -2435,15 +2534,47 @@ int ilogb(real x)  @trusted nothrow @nogc
             mov     EAX,8[RSP]          ;
             ret                         ;
 
-          Lzeronan:
+        Lzeronan:
             mov     EAX,0x80000000      ;
             fstp    ST(0)               ;
             ret                         ;
 
-          Linfinity:
+        Linfinity:
             mov     EAX,0x7FFFFFFF      ;
             fstp    ST(0)               ;
             ret                         ;
+        }
+    }
+    else version (CRuntime_Microsoft)
+    {
+        int res;
+        asm pure nothrow @nogc
+        {
+            naked                       ;
+            fld     real ptr [x]        ;
+            fxam                        ;
+            fstsw   AX                  ;
+            and     AH,0x45             ;
+            cmp     AH,0x40             ;
+            jz      Lzeronan            ;
+            cmp     AH,5                ;
+            jz      Linfinity           ;
+            cmp     AH,1                ;
+            jz      Lzeronan            ;
+            fxtract                     ;
+            fstp    ST(0)               ;
+            fistp   res                 ;
+            mov     EAX,res             ;
+            jmp     Ldone               ;
+
+        Lzeronan:
+            mov     EAX,0x80000000      ;
+            fstp    ST(0)               ;
+
+        Linfinity:
+            mov     EAX,0x7FFFFFFF      ;
+            fstp    ST(0)               ;
+        Ldone: ;
         }
     }
     else
@@ -3005,13 +3136,22 @@ real logb(real x) @trusted nothrow @nogc
 {
     version (Win64_DMD_InlineAsm_X87)
     {
-        asm
+        asm pure nothrow @nogc
         {
             naked                       ;
             fld     real ptr [RCX]      ;
             fxtract                     ;
             fstp    ST(0)               ;
             ret                         ;
+        }
+    }
+    else version (CRuntime_Microsoft)
+    {
+        asm pure nothrow @nogc
+        {
+            fld     x                   ;
+            fxtract                     ;
+            fstp    ST(0)               ;
         }
     }
     else
@@ -3034,7 +3174,7 @@ real logb(real x) @trusted nothrow @nogc
  */
 real fmod(real x, real y) @trusted nothrow @nogc
 {
-    version (Win64)
+    version (CRuntime_Microsoft)
     {
         return x % y;
     }
@@ -3055,7 +3195,7 @@ real fmod(real x, real y) @trusted nothrow @nogc
  */
 real modf(real x, ref real i) @trusted nothrow @nogc
 {
-    version (Win64)
+    version (CRuntime_Microsoft)
     {
         i = trunc(x);
         return copysign(isInfinity(x) ? 0.0 : x - i, x);
@@ -3083,7 +3223,7 @@ real scalbn(real x, int n) @trusted nothrow @nogc
         // scalbnl is not supported on DMD-Windows, so use asm.
         version (Win64)
         {
-            asm {
+            asm pure nothrow @nogc {
                 naked                           ;
                 mov     16[RSP],RCX             ;
                 fild    word ptr 16[RSP]        ;
@@ -3095,7 +3235,7 @@ real scalbn(real x, int n) @trusted nothrow @nogc
         }
         else
         {
-            asm {
+            asm pure nothrow @nogc {
                 fild n;
                 fld x;
                 fscale;
@@ -3126,7 +3266,7 @@ unittest
  */
 real cbrt(real x) @trusted nothrow @nogc
 {
-    version (Win64)
+    version (CRuntime_Microsoft)
     {
         version (INLINE_YL2X)
             return copysign(exp2(yl2x(fabs(x), 1.0L/3.0L)), x);
@@ -3289,7 +3429,7 @@ real ceil(real x) @trusted pure nothrow @nogc
 {
     version (Win64_DMD_InlineAsm_X87)
     {
-        asm
+        asm pure nothrow @nogc
         {
             naked                       ;
             fld     real ptr [RCX]      ;
@@ -3304,6 +3444,24 @@ real ceil(real x) @trusted pure nothrow @nogc
             mov     9[RSP],DL           ;
             fldcw   8[RSP]              ;
             ret                         ;
+        }
+    }
+    else version(CRuntime_Microsoft)
+    {
+        short cw;
+        asm pure nothrow @nogc
+        {
+            fld     x                   ;
+            fstcw   cw                  ;
+            mov     AL,byte ptr cw+1    ;
+            mov     DL,AL               ;
+            and     AL,0xC3             ;
+            or      AL,0x08             ; // round to +infinity
+            mov     byte ptr cw+1,AL    ;
+            fldcw   cw                  ;
+            frndint                     ;
+            mov     byte ptr cw+1,DL    ;
+            fldcw   cw                  ;
         }
     }
     else
@@ -3409,7 +3567,7 @@ real floor(real x) @trusted pure nothrow @nogc
 {
     version (Win64_DMD_InlineAsm_X87)
     {
-        asm
+        asm pure nothrow @nogc
         {
             naked                       ;
             fld     real ptr [RCX]      ;
@@ -3424,6 +3582,24 @@ real floor(real x) @trusted pure nothrow @nogc
             mov     9[RSP],DL           ;
             fldcw   8[RSP]              ;
             ret                         ;
+        }
+    }
+    else version(CRuntime_Microsoft)
+    {
+        short cw;
+        asm pure nothrow @nogc
+        {
+            fld     x                   ;
+            fstcw   cw                  ;
+            mov     AL,byte ptr cw+1    ;
+            mov     DL,AL               ;
+            and     AL,0xC3             ;
+            or      AL,0x04             ; // round to -infinity
+            mov     byte ptr cw+1,AL    ;
+            fldcw   cw                  ;
+            frndint                     ;
+            mov     byte ptr cw+1,DL    ;
+            fldcw   cw                  ;
         }
     }
     else
@@ -3516,7 +3692,7 @@ else
 
 real nearbyint(real x) @trusted nothrow @nogc
 {
-    version (Win64)
+    version (CRuntime_Microsoft)
     {
         assert(0);      // not implemented in C library
     }
@@ -3579,7 +3755,7 @@ long lrint(real x) @trusted pure nothrow @nogc
     {
         version (Win64)
         {
-            asm
+            asm pure nothrow @nogc
             {
                 naked;
                 fld     real ptr [RCX];
@@ -3591,7 +3767,7 @@ long lrint(real x) @trusted pure nothrow @nogc
         else
         {
             long n;
-            asm
+            asm pure nothrow @nogc
             {
                 fld x;
                 fistp n;
@@ -3735,7 +3911,7 @@ else
 
 real round(real x) @trusted nothrow @nogc
 {
-    version (Win64)
+    version (CRuntime_Microsoft)
     {
         auto old = FloatingPointControl.getControlState();
         FloatingPointControl.setControlState((old & ~FloatingPointControl.ROUNDING_MASK) | FloatingPointControl.roundToZero);
@@ -3789,7 +3965,7 @@ real trunc(real x) @trusted nothrow @nogc
 {
     version (Win64_DMD_InlineAsm_X87)
     {
-        asm
+        asm pure nothrow @nogc
         {
             naked                       ;
             fld     real ptr [RCX]      ;
@@ -3804,6 +3980,24 @@ real trunc(real x) @trusted nothrow @nogc
             mov     9[RSP],DL           ;
             fldcw   8[RSP]              ;
             ret                         ;
+        }
+    }
+    else version(CRuntime_Microsoft)
+    {
+        short cw;
+        asm pure nothrow @nogc
+        {
+            fld     x                   ;
+            fstcw   cw                  ;
+            mov     AL,byte ptr cw+1    ;
+            mov     DL,AL               ;
+            and     AL,0xC3             ;
+            or      AL,0x0C             ; // round to 0
+            mov     byte ptr cw+1,AL    ;
+            fldcw   cw                  ;
+            frndint                     ;
+            mov     byte ptr cw+1,DL    ;
+            fldcw   cw                  ;
         }
     }
     else
@@ -3836,7 +4030,7 @@ real trunc(real x) @trusted nothrow @nogc
  */
 real remainder(real x, real y) @trusted nothrow @nogc
 {
-    version (Win64)
+    version (CRuntime_Microsoft)
     {
         int n;
         return remquo(x, y, n);
@@ -3930,13 +4124,14 @@ private:
     }
     else version (ARM)
     {
+        // ARM FPSCR is a 32bit register
         enum : int
         {
-            INEXACT_MASK   = 0x00001000,
-            UNDERFLOW_MASK = 0x00000800,
-            OVERFLOW_MASK  = 0x00000400,
-            DIVBYZERO_MASK = 0x00000200,
-            INVALID_MASK   = 0x00000100
+            INEXACT_MASK   = 0x1000,
+            UNDERFLOW_MASK = 0x0800,
+            OVERFLOW_MASK  = 0x0400,
+            DIVBYZERO_MASK = 0x0200,
+            INVALID_MASK   = 0x0100
         }
     }
     else version(SPARC)
@@ -3985,7 +4180,7 @@ private:
         }
         else version(D_InlineAsm_X86)
         {
-            asm
+            asm pure nothrow @nogc
             {
                  fstsw AX;
                  // NOTE: If compiler supports SSE2, need to OR the result with
@@ -3996,7 +4191,7 @@ private:
         }
         else version(D_InlineAsm_X86_64)
         {
-            asm
+            asm pure nothrow @nogc
             {
                  fstsw AX;
                  // NOTE: If compiler supports SSE2, need to OR the result with
@@ -4009,7 +4204,7 @@ private:
         {
            /*
                int retval;
-               asm { st %fsr, retval; }
+               asm pure nothrow @nogc { st %fsr, retval; }
                return retval;
             */
            assert(0, "Not yet supported");
@@ -4051,7 +4246,7 @@ private:
         }
         else version(InlineAsm_X86_Any)
         {
-            asm
+            asm pure nothrow @nogc
             {
                 fnclex;
             }
@@ -4060,9 +4255,9 @@ private:
         {
             /* SPARC:
               int tmpval;
-              asm { st %fsr, tmpval; }
+              asm pure nothrow @nogc { st %fsr, tmpval; }
               tmpval &=0xFFFF_FC00;
-              asm { ld tmpval, %fsr; }
+              asm pure nothrow @nogc { ld tmpval, %fsr; }
             */
            assert(0, "Not yet supported");
         }
@@ -4449,7 +4644,7 @@ private:
         }
         else version (InlineAsm_X86_Any)
         {
-            asm
+            asm nothrow @nogc
             {
                 fclex;
             }
@@ -4498,7 +4693,7 @@ private:
         else version (D_InlineAsm_X86)
         {
             short cont;
-            asm
+            asm nothrow @nogc
             {
                 xor EAX, EAX;
                 fstcw cont;
@@ -4509,7 +4704,7 @@ private:
         version (D_InlineAsm_X86_64)
         {
             short cont;
-            asm
+            asm nothrow @nogc
             {
                 xor RAX, RAX;
                 fstcw cont;
@@ -4557,7 +4752,7 @@ private:
         {
             version (Win64)
             {
-                asm
+                asm nothrow @nogc
                 {
                     naked;
                     mov     8[RSP],RCX;
@@ -4568,7 +4763,7 @@ private:
             }
             else
             {
-                asm
+                asm nothrow @nogc
                 {
                     fclex;
                     fldcw newState;
@@ -6468,7 +6663,7 @@ body
         version (RealPacked)
         {
         // BUG: This code assumes a frame pointer in EBP.
-            asm // assembler by W. Bright
+            asm pure nothrow @nogc // assembler by W. Bright
             {
                 // EDX = (A.length - 1) * real.sizeof
                 mov     ECX,A[EBP]              ; // ECX = A.length
@@ -6496,7 +6691,7 @@ body
         }
         else version (Real4ByteAligned)
         {
-            asm // assembler by W. Bright
+            asm pure nothrow @nogc // assembler by W. Bright
             {
                 // EDX = (A.length - 1) * real.sizeof
                 mov     ECX,A[EBP]              ; // ECX = A.length
@@ -6524,7 +6719,7 @@ body
         }
         else version (OSX)
         {
-            asm // assembler by W. Bright
+            asm pure nothrow @nogc // assembler by W. Bright
             {
                 // EDX = (A.length - 1) * real.sizeof
                 mov     ECX,A[EBP]              ; // ECX = A.length
@@ -6552,7 +6747,35 @@ body
         }
         else version (FreeBSD)
         {
-            asm // assembler by W. Bright
+            asm pure nothrow @nogc // assembler by W. Bright
+            {
+                // EDX = (A.length - 1) * real.sizeof
+                mov     ECX,A[EBP]              ; // ECX = A.length
+                dec     ECX                     ;
+                lea     EDX,[ECX*8]             ;
+                lea     EDX,[EDX][ECX*4]        ;
+                add     EDX,A+4[EBP]            ;
+                fld     real ptr [EDX]          ; // ST0 = coeff[ECX]
+                jecxz   return_ST               ;
+                fld     x[EBP]                  ; // ST0 = x
+                fxch    ST(1)                   ; // ST1 = x, ST0 = r
+                align   4                       ;
+        L2:     fmul    ST,ST(1)                ; // r *= x
+                fld     real ptr -12[EDX]       ;
+                sub     EDX,12                  ; // deg--
+                faddp   ST(1),ST                ;
+                dec     ECX                     ;
+                jne     L2                      ;
+                fxch    ST(1)                   ; // ST1 = r, ST0 = x
+                fstp    ST(0)                   ; // dump x
+                align   4                       ;
+        return_ST:                              ;
+                ;
+            }
+        }
+        else version (Android)
+        {
+            asm pure nothrow @nogc // assembler by W. Bright
             {
                 // EDX = (A.length - 1) * real.sizeof
                 mov     ECX,A[EBP]              ; // ECX = A.length
@@ -6692,11 +6915,11 @@ unittest
 }
 
 // Included for backwards compatibility with Phobos1
-alias isnan = isNaN;
-alias isfinite = isFinite;
-alias isnormal = isNormal;
-alias issubnormal = isSubnormal;
-alias isinf = isInfinity;
+deprecated("Phobos1 math functions are deprecated, use isNaN") alias isnan = isNaN;
+deprecated("Phobos1 math functions are deprecated, use isFinite ") alias isfinite = isFinite;
+deprecated("Phobos1 math functions are deprecated, use isNormal ") alias isnormal = isNormal;
+deprecated("Phobos1 math functions are deprecated, use isSubnormal ") alias issubnormal = isSubnormal;
+deprecated("Phobos1 math functions are deprecated, use isInfinity ") alias isinf = isInfinity;
 
 /* **********************************
  * Building block functions, they

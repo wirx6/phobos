@@ -10,7 +10,7 @@
     {
         FILE* f = enforce(fopen("some/file"));
         // f is not null from here on
-        FILE* g = enforceEx!WriteException(fopen("some/other/file", "w"));
+        FILE* g = enforce!WriteException(fopen("some/other/file", "w"));
         // g is not null from here on
 
         Exception e = collectException(write(g, readln(f)));
@@ -44,8 +44,10 @@
  +/
 module std.exception;
 
-import std.array, std.c.string, std.conv, std.range, std.string, std.traits;
-import core.exception, core.stdc.errno;
+import std.traits;
+
+import core.stdc.errno;
+import core.stdc.string;
 
 /++
     Asserts that the given expression does $(I not) throw the given type
@@ -74,12 +76,15 @@ void assertNotThrown(T : Throwable = Exception, E)
                      string file = __FILE__,
                      size_t line = __LINE__)
 {
+    import core.exception : AssertError;
     try
     {
         expression();
     }
     catch (T t)
     {
+        import std.array : empty;
+        import std.string : format;
         immutable message = msg.empty ? t.msg : msg;
         immutable tail = message.empty ? "." : ": " ~ message;
         throw new AssertError(format("assertNotThrown failed: %s was thrown%s",
@@ -90,32 +95,39 @@ void assertNotThrown(T : Throwable = Exception, E)
 ///
 unittest
 {
-    assertNotThrown!StringException(enforceEx!StringException(true, "Error!"));
+    import core.exception : AssertError;
+
+    import std.string;
+    assertNotThrown!StringException(enforce!StringException(true, "Error!"));
 
     //Exception is the default.
-    assertNotThrown(enforceEx!StringException(true, "Error!"));
+    assertNotThrown(enforce!StringException(true, "Error!"));
 
     assert(collectExceptionMsg!AssertError(assertNotThrown!StringException(
-               enforceEx!StringException(false, "Error!"))) ==
+               enforce!StringException(false, "Error!"))) ==
            `assertNotThrown failed: StringException was thrown: Error!`);
 }
 unittest
 {
+    import core.exception : AssertError;
+    import std.string;
     assert(collectExceptionMsg!AssertError(assertNotThrown!StringException(
-               enforceEx!StringException(false, ""), "Error!")) ==
+               enforce!StringException(false, ""), "Error!")) ==
            `assertNotThrown failed: StringException was thrown: Error!`);
 
     assert(collectExceptionMsg!AssertError(assertNotThrown!StringException(
-               enforceEx!StringException(false, ""))) ==
+               enforce!StringException(false, ""))) ==
            `assertNotThrown failed: StringException was thrown.`);
 
     assert(collectExceptionMsg!AssertError(assertNotThrown!StringException(
-               enforceEx!StringException(false, ""), "")) ==
+               enforce!StringException(false, ""), "")) ==
            `assertNotThrown failed: StringException was thrown.`);
 }
 
 unittest
 {
+    import core.exception : AssertError;
+
     void throwEx(Throwable t) { throw t; }
     void nothrowEx() { }
 
@@ -213,11 +225,14 @@ void assertThrown(T : Throwable = Exception, E)
                   string file = __FILE__,
                   size_t line = __LINE__)
 {
+    import core.exception : AssertError;
+
     try
         expression();
     catch (T)
         return;
-
+    import std.array : empty;
+    import std.string : format;
     throw new AssertError(format("assertThrown failed: No %s was thrown%s%s",
                                  T.stringof, msg.empty ? "." : ": ", msg),
                           file, line);
@@ -225,18 +240,23 @@ void assertThrown(T : Throwable = Exception, E)
 ///
 unittest
 {
-    assertThrown!StringException(enforceEx!StringException(false, "Error!"));
+    import core.exception : AssertError;
+    import std.string;
+
+    assertThrown!StringException(enforce!StringException(false, "Error!"));
 
     //Exception is the default.
-    assertThrown(enforceEx!StringException(false, "Error!"));
+    assertThrown(enforce!StringException(false, "Error!"));
 
     assert(collectExceptionMsg!AssertError(assertThrown!StringException(
-               enforceEx!StringException(true, "Error!"))) ==
+               enforce!StringException(true, "Error!"))) ==
            `assertThrown failed: No StringException was thrown.`);
 }
 
 unittest
 {
+    import core.exception : AssertError;
+
     void throwEx(Throwable t) { throw t; }
     void nothrowEx() { }
 
@@ -330,10 +350,10 @@ unittest
     enforce(line.length, "Expected a non-empty line.");
     --------------------
  +/
-T enforce(T)(T value, lazy const(char)[] msg = null, string file = __FILE__, size_t line = __LINE__)
+T enforce(E : Throwable = Exception, T)(T value, lazy const(char)[] msg = null, string file = __FILE__, size_t line = __LINE__)
     if (is(typeof({ if (!value) {} })))
 {
-    if (!value) bailOut(file, line, msg);
+    if (!value) bailOut!E(file, line, msg);
     return value;
 }
 
@@ -367,9 +387,21 @@ T enforce(T, Dg, string file = __FILE__, size_t line = __LINE__)
     return value;
 }
 
-private void bailOut(string file, size_t line, in char[] msg) @safe pure
+private void bailOut(E : Throwable = Exception)(string file, size_t line, in char[] msg)
 {
-    throw new Exception(msg.ptr ? msg.idup : "Enforcement failed", file, line);
+    static if (is(typeof(new E(string.init, string.init, size_t.init))))
+    {
+        throw new E(msg.ptr ? msg.idup : "Enforcement failed", file, line);
+    }
+    else static if (is(typeof(new E(string.init, size_t.init))))
+    {
+        throw new E(file, line);
+    }
+    else
+    {
+        static assert("Expected this(string, string, size_t) or this(string, size_t)" ~
+            " constructor for " ~ __traits(identifier, E));
+    }
 }
 
 unittest
@@ -461,8 +493,8 @@ unittest
     {
         this(string msg) { super(msg, __FILE__, __LINE__); }
     }
-    enforceEx!E1(s);
-    enforceEx!E2(s);
+    enforce!E1(s);
+    enforce!E2(s);
 }
 
 deprecated unittest
@@ -530,6 +562,8 @@ T errnoEnforce(T, string file = __FILE__, size_t line = __LINE__)
     and can be constructed with $(D new E(file, line)), then
     $(D new E(file, line)) will be thrown.
 
+    This is legacy name, it is recommended to use $(D enforce!E) instead.
+
     Example:
     --------------------
     auto f = enforceEx!FileMissingException(fopen("data.txt"));
@@ -562,6 +596,8 @@ template enforceEx(E : Throwable)
 
 unittest
 {
+    import std.array : empty;
+    import core.exception : OutOfMemoryError;
     assertNotThrown(enforceEx!Exception(true));
     assertNotThrown(enforceEx!Exception(true, "blah"));
     assertNotThrown(enforceEx!OutOfMemoryError(true));
@@ -706,6 +742,7 @@ unittest
 +/
 string collectExceptionMsg(T = Exception, E)(lazy E expression)
 {
+    import std.array : empty;
     try
     {
         expression();
@@ -879,12 +916,14 @@ T assumeWontThrow(T)(lazy T expr,
                      string file = __FILE__,
                      size_t line = __LINE__) nothrow
 {
+    import core.exception : AssertError;
     try
     {
         return expr;
     }
     catch(Exception e)
     {
+        import std.array : empty;
         immutable tail = msg.empty ? "." : ": " ~ msg;
         throw new AssertError("assumeWontThrow failed: Expression did throw" ~
                               tail, file, line);
@@ -919,6 +958,8 @@ unittest
 
 unittest
 {
+    import core.exception : AssertError;
+
     void alwaysThrows()
     {
         throw new Exception("I threw up");
@@ -969,8 +1010,9 @@ bool doesPointTo(S, T, Tdummy=void)(auto ref const S source, ref const T target)
 {
     static if (isPointer!S || is(S == class) || is(S == interface))
     {
-        const m = cast(void*) source,
-              b = cast(void*) &target, e = b + target.sizeof;
+        const m = *cast(void**) &source;
+        const b = cast(void*) &target;
+        const e = b + target.sizeof;
         return b <= m && m < e;
     }
     else static if (is(S == struct) || is(S == union))
@@ -988,6 +1030,7 @@ bool doesPointTo(S, T, Tdummy=void)(auto ref const S source, ref const T target)
     }
     else static if (isDynamicArray!S)
     {
+        import std.array : overlap;
         return overlap(cast(void[])source, cast(void[])(&target)[0 .. 1]).length != 0;
     }
     else
@@ -1002,8 +1045,9 @@ bool mayPointTo(S, T, Tdummy=void)(auto ref const S source, ref const T target) 
 {
     static if (isPointer!S || is(S == class) || is(S == interface))
     {
-        const m = cast(void*) source,
-              b = cast(void*) &target, e = b + target.sizeof;
+        const m = *cast(void**) &source;
+        const b = cast(void*) &target;
+        const e = b + target.sizeof;
         return b <= m && m < e;
     }
     else static if (is(S == struct) || is(S == union))
@@ -1020,6 +1064,7 @@ bool mayPointTo(S, T, Tdummy=void)(auto ref const S source, ref const T target) 
     }
     else static if (isDynamicArray!S)
     {
+        import std.array : overlap;
         return overlap(cast(void[])source, cast(void[])(&target)[0 .. 1]).length != 0;
     }
     else
@@ -1352,26 +1397,42 @@ unittest //alias this test
     assert( doesPointTo(cast(int*)s, i));
     assert(!doesPointTo(cast(int*)s, j));
 }
+unittest //more alias this opCast
+{
+    void* p;
+    class A
+    {
+        void* opCast(T)() if (is(T == void*))
+        {
+            return p;
+        }
+        alias foo = opCast!(void*);
+        alias foo this;
+    }
+    assert(!doesPointTo(A.init, p));
+    assert(!mayPointTo(A.init, p));
+}
 
 /*********************
  * Thrown if errors that set $(D errno) occur.
  */
 class ErrnoException : Exception
 {
-    uint errno;                 // operating system error code
+    final @property uint errno() { return _errno; } /// Operating system error code.
+    private uint _errno;
     this(string msg, string file = null, size_t line = 0) @trusted
     {
-        errno = .errno;
+        _errno = .errno;
         version (linux)
         {
             char[1024] buf = void;
-            auto s = std.c.string.strerror_r(errno, buf.ptr, buf.length);
+            auto s = core.stdc.string.strerror_r(errno, buf.ptr, buf.length);
         }
         else
         {
-            auto s = std.c.string.strerror(errno);
+            auto s = core.stdc.string.strerror(errno);
         }
-        super(msg~" ("~to!string(s)~")", file, line);
+        super(msg~" ("~s[0..s.strlen].idup~")", file, line);
     }
 }
 
@@ -1485,6 +1546,8 @@ CommonType!(T1, T2) ifThrown(T1, T2)(lazy scope T1 expression, scope T2 delegate
 //Verify Examples
 unittest
 {
+    import std.string;
+    import std.conv;
     //Revert to a default value upon an error:
     assert("x".to!int().ifThrown(0) == 0);
 
@@ -1515,6 +1578,9 @@ unittest
 
 unittest
 {
+    import std.string;
+    import std.conv;
+    import core.exception;
     //Basic behaviour - all versions.
     assert("1".to!int().ifThrown(0) == 1);
     assert("x".to!int().ifThrown(0) == 0);

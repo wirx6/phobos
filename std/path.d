@@ -50,25 +50,10 @@
 module std.path;
 
 
-import std.algorithm;
-import std.array;
-import std.conv;
-import std.file: getcwd;
-import std.range;
-import std.string;
+// FIXME
+import std.file; //: getcwd;
+import std.range.constraints;
 import std.traits;
-
-version(Posix)
-{
-    import core.exception;
-    import core.stdc.errno;
-    import core.sys.posix.pwd;
-    import core.sys.posix.stdlib;
-    private import core.exception : onOutOfMemoryError;
-}
-
-
-
 
 /** String used to separate directory names in a path.  Under
     POSIX this is a slash, under Windows a backslash.
@@ -391,9 +376,8 @@ unittest
     includes the drive letter if present.
 
     This function performs a memory allocation if and only if $(D path)
-    is mutable and does not have a directory (in which case a new mutable
-    string is needed to hold the returned current-directory symbol,
-    $(D ".")).
+    does not have a directory (in which case a new string is needed to
+    hold the returned current-directory symbol, $(D ".")).
 
     Examples:
     ---
@@ -421,6 +405,7 @@ C[] dirName(C)(C[] path)
     //TODO: @safe (BUG 6169) pure nothrow (because of to())
     if (isSomeChar!C)
 {
+    import std.conv : to;
     if (path.empty) return to!(typeof(return))(".");
 
     auto p = rtrimDirSeparators(path);
@@ -925,6 +910,7 @@ immutable(Unqual!C1)[] defaultExtension(C1, C2)(in C1[] path, in C2[] ext)
     @trusted pure // TODO: nothrow (because of to())
     if (isSomeChar!C1 && is(Unqual!C1 == Unqual!C2))
 {
+    import std.conv : to;
     auto i = extSeparatorPos(path);
     if (i == -1)
     {
@@ -1060,6 +1046,7 @@ unittest
 
 unittest // non-documented
 {
+    import std.range;
     // ir() wraps an array in a plain (i.e. non-forward) input range, so that
     // we can test both code paths
     InputRange!(C[]) ir(C)(C[][] p...) { return inputRangeObject(p); }
@@ -1187,7 +1174,7 @@ immutable(C)[] buildNormalizedPath(C)(const(C[])[] paths...)
     @trusted pure nothrow
     if (isSomeChar!C)
 {
-    import std.c.stdlib;
+    import core.stdc.stdlib;
     auto paths2 = new const(C)[][](paths.length);
         //(cast(const(C)[]*)alloca((const(C)[]).sizeof * paths.length))[0 .. paths.length];
 
@@ -1738,6 +1725,7 @@ unittest
     // equal2 verifies that the range is the same both ways, i.e.
     // through front/popFront and back/popBack.
     import std.range;
+    import std.algorithm;
     bool equal2(R1, R2)(R1 r1, R2 r2)
     {
         static assert (isBidirectionalRange!R1);
@@ -2385,6 +2373,7 @@ bool globMatch(CaseSensitive cs = CaseSensitive.osDefault, C)
 in
 {
     // Verify that pattern[] is valid
+    import std.algorithm : balancedParens;
     assert(balancedParens(pattern, '[', ']', 0));
     assert(balancedParens(pattern, '{', '}', 0));
 }
@@ -2574,7 +2563,7 @@ bool isValidFilename(R)(R filename)
     if (isRandomAccessRange!R && isSomeChar!(ElementType!R) ||
         is(StringTypeOf!R))
 {
-    import core.stdc.stdio;
+    import core.stdc.stdio : FILENAME_MAX;
     if (filename.length == 0 || filename.length >= FILENAME_MAX) return false;
     foreach (c; filename)
     {
@@ -2619,6 +2608,7 @@ bool isValidFilename(R)(R filename)
 
 unittest
 {
+    import std.conv;
     auto valid = ["foo"];
     auto invalid = ["", "foo\0bar", "foo/bar"];
     auto pfdep = [`foo\bar`, "*.txt"];
@@ -2847,6 +2837,9 @@ string expandTilde(string inputPath)
     {
         import core.stdc.string : strlen;
         import core.stdc.stdlib : getenv, malloc, free;
+        import core.exception : onOutOfMemoryError;
+        import core.sys.posix.pwd : passwd, getpwnam_r;
+        import core.stdc.errno : errno, ERANGE;
 
         /*  Joins a path from a C string to the remainder of path.
 
@@ -2894,68 +2887,77 @@ string expandTilde(string inputPath)
         // Replaces the tilde from path with the path from the user database.
         static string expandFromDatabase(string path)
         {
-            assert(path.length > 2 || (path.length == 2 && !isDirSeparator(path[1])));
-            assert(path[0] == '~');
-
-            // Extract username, searching for path separator.
-            string username;
-            auto last_char = std.string.indexOf(path, dirSeparator[0]);
-
-            if (last_char == -1)
+            // Android doesn't really support this, as getpwnam_r
+            // isn't provided and getpwnam is basically just a stub
+            version(Android)
             {
-                username = path[1 .. $] ~ '\0';
-                last_char = username.length + 1;
+                return path;
             }
             else
             {
-                username = path[1 .. last_char] ~ '\0';
-            }
-            assert(last_char > 1);
+                assert(path.length > 2 || (path.length == 2 && !isDirSeparator(path[1])));
+                assert(path[0] == '~');
 
-            // Reserve C memory for the getpwnam_r() function.
-            passwd result;
-            int extra_memory_size = 5 * 1024;
-            void* extra_memory;
+                // Extract username, searching for path separator.
+                string username;
+                auto last_char = std.string.indexOf(path, dirSeparator[0]);
 
-            while (1)
-            {
-                extra_memory = core.stdc.stdlib.malloc(extra_memory_size);
-                if (extra_memory == null)
-                    goto Lerror;
-
-                // Obtain info from database.
-                passwd *verify;
-                errno = 0;
-                if (getpwnam_r(cast(char*) username.ptr, &result, cast(char*) extra_memory, extra_memory_size,
-                        &verify) == 0)
+                if (last_char == -1)
                 {
-                    // Failure if verify doesn't point at result.
-                    if (verify != &result)
-                        // username is not found, so return path[]
-                        goto Lnotfound;
-                    break;
+                    username = path[1 .. $] ~ '\0';
+                    last_char = username.length + 1;
+                }
+                else
+                {
+                    username = path[1 .. last_char] ~ '\0';
+                }
+                assert(last_char > 1);
+
+                // Reserve C memory for the getpwnam_r() function.
+                passwd result;
+                int extra_memory_size = 5 * 1024;
+                void* extra_memory;
+
+                while (1)
+                {
+                    extra_memory = core.stdc.stdlib.malloc(extra_memory_size);
+                    if (extra_memory == null)
+                        goto Lerror;
+
+                    // Obtain info from database.
+                    passwd *verify;
+                    errno = 0;
+                    if (getpwnam_r(cast(char*) username.ptr, &result, cast(char*) extra_memory, extra_memory_size,
+                            &verify) == 0)
+                    {
+                        // Failure if verify doesn't point at result.
+                        if (verify != &result)
+                            // username is not found, so return path[]
+                            goto Lnotfound;
+                        break;
+                    }
+
+                    if (errno != ERANGE)
+                        goto Lerror;
+
+                    // extra_memory isn't large enough
+                    core.stdc.stdlib.free(extra_memory);
+                    extra_memory_size *= 2;
                 }
 
-                if (errno != ERANGE)
-                    goto Lerror;
+                path = combineCPathWithDPath(result.pw_dir, path, last_char);
 
-                // extra_memory isn't large enough
+            Lnotfound:
                 core.stdc.stdlib.free(extra_memory);
-                extra_memory_size *= 2;
+                return path;
+
+            Lerror:
+                // Errors are going to be caused by running out of memory
+                if (extra_memory)
+                    core.stdc.stdlib.free(extra_memory);
+                onOutOfMemoryError();
+                return null;
             }
-
-            path = combineCPathWithDPath(result.pw_dir, path, last_char);
-
-        Lnotfound:
-            core.stdc.stdlib.free(extra_memory);
-            return path;
-
-        Lerror:
-            // Errors are going to be caused by running out of memory
-            if (extra_memory)
-                core.stdc.stdlib.free(extra_memory);
-            onOutOfMemoryError();
-            return null;
         }
 
         // Return early if there is no tilde in path.
@@ -3006,15 +3008,20 @@ unittest
         if (oldHome !is null) environment["HOME"] = oldHome;
         else environment.remove("HOME");
 
-        // Test user expansion for root. Are there unices without /root?
+        // Test user expansion for root, no /root on Android
         version (OSX)
+        {
             assert(expandTilde("~root") == "/var/root", expandTilde("~root"));
-        else
-            assert(expandTilde("~root") == "/root", expandTilde("~root"));
-        version (OSX)
             assert(expandTilde("~root/") == "/var/root/", expandTilde("~root/"));
+        }
+        else version (Android)
+        {
+        }
         else
+        {
+            assert(expandTilde("~root") == "/root", expandTilde("~root"));
             assert(expandTilde("~root/") == "/root/", expandTilde("~root/"));
+        }
         assert(expandTilde("~Idontexist/hey") == "~Idontexist/hey");
     }
 }

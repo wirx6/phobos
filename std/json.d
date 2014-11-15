@@ -4,7 +4,7 @@
 JavaScript Object Notation
 
 Copyright: Copyright Jeremie Pelletier 2008 - 2009.
-License:   <a href="http://www.boost.org/LICENSE_1_0.txt">Boost License 1.0</a>.
+License:   $(WEB www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
 Authors:   Jeremie Pelletier, David Herberth
 References: $(LINK http://json.org/)
 Source:    $(PHOBOSSRC std/_json.d)
@@ -17,19 +17,10 @@ Distributed under the Boost Software License, Version 1.0.
 */
 module std.json;
 
-import std.ascii;
 import std.conv;
-import std.range;
-import std.utf;
+import std.range.constraints;
+import std.array;
 import std.traits;
-import std.exception;
-
-private
-{
-    // Prevent conflicts from these generic names
-    alias UTFStride = std.utf.stride;
-    alias toUnicode = std.utf.decode;
-}
 
 /**
 JSON type enumeration
@@ -37,15 +28,15 @@ JSON type enumeration
 enum JSON_TYPE : byte
 {
     /// Indicates the type of a $(D JSONValue).
-    STRING,
+    NULL,
+    STRING,  /// ditto
     INTEGER, /// ditto
     UINTEGER,/// ditto
     FLOAT,   /// ditto
     OBJECT,  /// ditto
     ARRAY,   /// ditto
     TRUE,    /// ditto
-    FALSE,   /// ditto
-    NULL     /// ditto
+    FALSE    /// ditto
 }
 
 /**
@@ -53,6 +44,8 @@ JSON value node
 */
 struct JSONValue
 {
+    import std.exception : enforceEx, enforce;
+
     union Store
     {
         string                          str;
@@ -118,7 +111,7 @@ struct JSONValue
     /// Throws $(D JSONException) for read access if $(D type) is not $(D JSON_TYPE.STRING).
     @property inout(string) str() inout
     {
-        enforceEx!JSONException(type == JSON_TYPE.STRING,
+        enforce!JSONException(type == JSON_TYPE.STRING,
                                 "JSONValue is not a string");
         return store.str;
     }
@@ -133,7 +126,7 @@ struct JSONValue
     /// Throws $(D JSONException) for read access if $(D type) is not $(D JSON_TYPE.INTEGER).
     @property inout(long) integer() inout
     {
-        enforceEx!JSONException(type == JSON_TYPE.INTEGER,
+        enforce!JSONException(type == JSON_TYPE.INTEGER,
                                 "JSONValue is not an integer");
         return store.integer;
     }
@@ -148,7 +141,7 @@ struct JSONValue
     /// Throws $(D JSONException) for read access if $(D type) is not $(D JSON_TYPE.UINTEGER).
     @property inout(ulong) uinteger() inout
     {
-        enforceEx!JSONException(type == JSON_TYPE.UINTEGER,
+        enforce!JSONException(type == JSON_TYPE.UINTEGER,
                                 "JSONValue is not an unsigned integer");
         return store.uinteger;
     }
@@ -163,7 +156,7 @@ struct JSONValue
     /// Throws $(D JSONException) for read access if $(D type) is not $(D JSON_TYPE.FLOAT).
     @property inout(double) floating() inout
     {
-        enforceEx!JSONException(type == JSON_TYPE.FLOAT,
+        enforce!JSONException(type == JSON_TYPE.FLOAT,
                                 "JSONValue is not a floating type");
         return store.floating;
     }
@@ -178,7 +171,7 @@ struct JSONValue
     /// Throws $(D JSONException) for read access if $(D type) is not $(D JSON_TYPE.OBJECT).
     @property ref inout(JSONValue[string]) object() inout
     {
-        enforceEx!JSONException(type == JSON_TYPE.OBJECT,
+        enforce!JSONException(type == JSON_TYPE.OBJECT,
                                 "JSONValue is not an object");
         return store.object;
     }
@@ -193,7 +186,7 @@ struct JSONValue
     /// Throws $(D JSONException) for read access if $(D type) is not $(D JSON_TYPE.ARRAY).
     @property ref inout(JSONValue[]) array() inout
     {
-        enforceEx!JSONException(type == JSON_TYPE.ARRAY,
+        enforce!JSONException(type == JSON_TYPE.ARRAY,
                                 "JSONValue is not an array");
         return store.array;
     }
@@ -333,8 +326,10 @@ struct JSONValue
     /// Throws $(D JSONException) if $(D type) is not $(D JSON_TYPE.ARRAY).
     ref inout(JSONValue) opIndex(size_t i) inout
     {
-        enforceEx!JSONException(type == JSON_TYPE.ARRAY,
+        enforce!JSONException(type == JSON_TYPE.ARRAY,
                                 "JSONValue is not an array");
+        enforceEx!JSONException(i < store.array.length,
+                                "JSONValue array index is out of range");
         return store.array[i];
     }
 
@@ -342,15 +337,84 @@ struct JSONValue
     /// Throws $(D JSONException) if $(D type) is not $(D JSON_TYPE.OBJECT).
     ref inout(JSONValue) opIndex(string k) inout
     {
-        enforceEx!JSONException(type == JSON_TYPE.OBJECT,
+        enforce!JSONException(type == JSON_TYPE.OBJECT,
                                 "JSONValue is not an object");
-        return *enforceEx!JSONException(k in store.object,
+        return *enforce!JSONException(k in store.object,
                                         "Key not found: " ~ k);
+    }
+    
+    /// Operator sets $(D value) for element of JSON object by $(D key)
+    /// If JSON value is null, then operator initializes it with object and then
+    /// sets $(D value) for it.
+    /// Throws $(D JSONException) if $(D type) is not $(D JSON_TYPE.OBJECT)
+    /// or $(D JSON_TYPE.NULL).
+    void opIndexAssign(T)(auto ref T value, string key)
+    {
+        enforceEx!JSONException(type == JSON_TYPE.OBJECT || type == JSON_TYPE.NULL,
+                                "JSONValue must be object or null");
+        
+        if(type == JSON_TYPE.NULL)
+            this = (JSONValue[string]).init;
+        
+        store.object[key] = value;
+    }
+
+    void opIndexAssign(T)(T arg, size_t i)
+    {
+        enforceEx!JSONException(type == JSON_TYPE.ARRAY,
+                                "JSONValue is not an array");
+        enforceEx!JSONException(i < store.array.length,
+                                "JSONValue array index is out of range");
+        store.array[i] = arg;
+    }
+
+    JSONValue opBinary(string op : "~", T)(T arg)
+    {
+        enforceEx!JSONException(type == JSON_TYPE.ARRAY,
+                                "JSONValue is not an array");
+        static if(isArray!T)
+        {
+            JSONValue newArray = JSONValue(this.store.array.dup);
+            newArray.store.array ~= JSONValue(arg).store.array;
+            return newArray;
+        }
+        else static if(is(T : JSONValue))
+        {
+            enforceEx!JSONException(arg.type == JSON_TYPE.ARRAY,
+                                    "JSONValue is not an array");
+            JSONValue newArray = JSONValue(this.store.array.dup);
+            newArray.store.array ~= arg.store.array;
+            return newArray;
+        }
+        else
+        {
+            static assert(false, "argument is not an array or a JSONValue array");
+        }
+    }
+
+    void opOpAssign(string op : "~", T)(T arg)
+    {
+        enforceEx!JSONException(type == JSON_TYPE.ARRAY,
+                                "JSONValue is not an array");
+        static if(isArray!T)
+        {
+            store.array ~= JSONValue(arg).store.array;
+        }
+        else static if(is(T : JSONValue))
+        {
+            enforceEx!JSONException(arg.type == JSON_TYPE.ARRAY,
+                                    "JSONValue is not an array");
+            store.array ~= arg.store.array;
+        }
+        else
+        {
+            static assert(false, "argument is not an array or a JSONValue array");
+        }
     }
 
     auto opBinaryRight(string op : "in")(string k) const
     {
-        enforceEx!JSONException(type == JSON_TYPE.OBJECT,
+        enforce!JSONException(type == JSON_TYPE.OBJECT,
                                 "JSONValue is not an object");
         return k in store.object;
     }
@@ -358,7 +422,7 @@ struct JSONValue
     /// Implements the foreach $(D opApply) interface for json arrays.
     int opApply(int delegate(size_t index, ref JSONValue) dg)
     {
-        enforceEx!JSONException(type == JSON_TYPE.ARRAY,
+        enforce!JSONException(type == JSON_TYPE.ARRAY,
                                 "JSONValue is not an array");
         int result;
 
@@ -375,7 +439,7 @@ struct JSONValue
     /// Implements the foreach $(D opApply) interface for json objects.
     int opApply(int delegate(string key, ref JSONValue) dg)
     {
-        enforceEx!JSONException(type == JSON_TYPE.OBJECT,
+        enforce!JSONException(type == JSON_TYPE.OBJECT,
                                 "JSONValue is not an object");
         int result;
 
@@ -408,6 +472,9 @@ Parses a serialized string and returns a tree of JSON values.
 */
 JSONValue parseJSON(T)(T json, int maxDepth = -1) if(isInputRange!T)
 {
+    import std.ascii : isWhite, isDigit, isHexDigit, toUpper, toLower;
+    import std.utf : toUTF8;
+
     JSONValue root = void;
     root.type_tag = JSON_TYPE.NULL;
 
@@ -696,9 +763,10 @@ JSONValue parseJSON(T)(T json, int maxDepth = -1) if(isInputRange!T)
 /**
 Takes a tree of JSON values and returns the serialized string.
 
+Any Object types will be serialized in a key-sorted order.
+
 If $(D pretty) is false no whitespaces are generated.
 If $(D pretty) is true serialized string is formatted to be human-readable.
-No exact formatting layout is guaranteed in the latter case.
 */
 string toJSON(in JSONValue* root, in bool pretty = false)
 {
@@ -759,18 +827,29 @@ string toJSON(in JSONValue* root, in bool pretty = false)
                 {
                     putCharAndEOL('{');
                     bool first = true;
-                    foreach(name, member; value.store.object)
+
+                    void emit(R)(R names)
                     {
-                        if(!first)
-                            putCharAndEOL(',');
-                        first = false;
-                        putTabs(1);
-                        toString(name);
-                        json.put(':');
-                        if(pretty)
-                            json.put(' ');
-                        toValue(&member, indentLevel + 1);
+                        foreach (name; names)
+                        {
+                            auto member = value.store.object[name];
+                            if(!first)
+                                putCharAndEOL(',');
+                            first = false;
+                            putTabs(1);
+                            toString(name);
+                            json.put(':');
+                            if(pretty)
+                                json.put(' ');
+                            toValue(&member, indentLevel + 1);
+                        }
                     }
+
+                    import std.algorithm : sort;
+                    auto names = value.store.object.keys;
+                    sort(names);
+                    emit(names);
+
                     putEOL();
                     putTabs();
                     json.put('}');
@@ -864,6 +943,7 @@ class JSONException : Exception
 
 unittest
 {
+    import std.exception;
     JSONValue jv = "123";
     assert(jv.type == JSON_TYPE.STRING);
     assertNotThrown(jv.str);
@@ -987,6 +1067,28 @@ unittest
 
 unittest
 {
+    // Adding new json element without array() / object() access
+
+    JSONValue jarr = JSONValue([10]);
+    foreach (i; 0..9)
+        jarr ~= [JSONValue(i)];
+    assert(jarr.array.length == 10);
+
+    JSONValue jobj = JSONValue(["key" : JSONValue("value")]);
+    foreach (i; 0..9)
+        jobj[text("key", i)] = JSONValue(text("value", i));
+    assert(jobj.object.length == 10);
+
+    // No array alias
+    auto jarr2 = jarr ~ [1,2,3];
+    jarr2[0] = 999;
+    assert(jarr[0] == JSONValue(10));
+}
+
+unittest
+{
+    import std.exception;
+
     // An overly simple test suite, if it can parse a serializated string and
     // then use the resulting values tree to generate an identical
     // serialization, both the decoder and encoder works.
@@ -1007,8 +1109,7 @@ unittest
         `[12,"foo",true,false]`,
         `{}`,
         `{"a":1,"b":null}`,
-        // Currently broken
-        // `{"hello":{"json":"is great","array":[12,null,{}]},"goodbye":[true,"or",false,["test",42,{"nested":{"a":23.54,"b":0.0012}}]]}`
+        `{"goodbye":[true,"or",false,["test",42,{"nested":{"a":23.54,"b":0.0012}}]],"hello":{"array":[12,null,{}],"json":"is great"}}`,
     ];
     version (MinGW) {
         jsons ~= `1.223e+024`;
@@ -1023,17 +1124,18 @@ unittest
 
     JSONValue val;
     string result;
-    foreach(json; jsons)
+    foreach (json; jsons)
     {
         try
         {
             val = parseJSON(json);
-            result = toJSON(&val);
+            enum pretty = false;
+            result = toJSON(&val, pretty);
             assert(result == json, text(result, " should be ", json));
         }
-        catch(JSONException e)
+        catch (JSONException e)
         {
-            import std.stdio;
+            import std.stdio : writefln;
             writefln(text(json, "\n", e.toString()));
         }
     }
@@ -1081,6 +1183,7 @@ unittest {
 deprecated unittest
 {
     // Bugzilla 12332
+    import std.exception;
 
     JSONValue jv;
     jv.type = JSON_TYPE.INTEGER;
@@ -1100,4 +1203,34 @@ deprecated unittest
 
     jv.type = JSON_TYPE.TRUE;
     assert(jv.type == JSON_TYPE.TRUE);
+}
+
+unittest
+{
+    // Bugzilla 12969
+    
+    JSONValue jv;
+    jv["int"] = 123;
+    
+    assert(jv.type == JSON_TYPE.OBJECT);
+    assert("int" in jv);
+    assert(jv["int"].integer == 123);
+    
+    jv["array"] = [1, 2, 3, 4, 5];
+    
+    assert(jv["array"].type == JSON_TYPE.ARRAY);
+    assert(jv["array"][2].integer == 3);
+    
+    jv["str"] = "D language";
+    assert(jv["str"].type == JSON_TYPE.STRING);
+    assert(jv["str"].str == "D language");
+    
+    jv["bool"] = false;
+    assert(jv["bool"].type == JSON_TYPE.FALSE);
+    
+    assert(jv.object.length == 4);
+    
+    jv = [5, 4, 3, 2, 1];
+    assert( jv.type == JSON_TYPE.ARRAY );
+    assert( jv[3].integer == 2 );
 }

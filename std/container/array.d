@@ -175,10 +175,12 @@ Constructor taking a number of items
     this(U)(U[] values...) if (isImplicitlyConvertible!(U, T))
     {
         auto p = cast(T*) malloc(T.sizeof * values.length);
-        if (hasIndirections!T && p)
+        static if (hasIndirections!T)
         {
-            GC.addRange(p, T.sizeof * values.length);
+            if (p)
+                GC.addRange(p, T.sizeof * values.length);
         }
+
         foreach (i, e; values)
         {
             emplace(p + i, e);
@@ -597,10 +599,8 @@ Postcondition: $(D length == newLength)
 
 /**
 Picks one value in an unspecified position in the container, removes
-it from the container, and returns it. Implementations should pick the
-value that's the most advantageous for the container, but document the
-exact behavior. The stable version behaves the same, but guarantees
-that ranges iterating over the container are never invalidated.
+it from the container, and returns it. The stable version behaves the same,
+but guarantees that ranges iterating over the container are never invalidated.
 
 Precondition: $(D !empty)
 
@@ -826,8 +826,6 @@ $(D r)
         length = offset1 + tailLength;
         return this[length - tailLength .. length];
     }
-    /// ditto
-    alias stableLinearRemove = remove;
 }
 
 unittest
@@ -851,6 +849,13 @@ unittest
 {
     auto a = Array!int(1, 2, 3);
     assert(a.length == 3);
+}
+
+unittest
+{
+    // REG https://issues.dlang.org/show_bug.cgi?id=13621
+    import std.container : Array, BinaryHeap;
+    alias Heap = BinaryHeap!(Array!int);
 }
 
 unittest
@@ -915,9 +920,6 @@ unittest
 {
     auto a = Array!int(0, 1, 2, 3, 4, 5, 6, 7, 8);
     a.linearRemove(a[4 .. 6]);
-    auto b = Array!int(0, 1, 2, 3, 6, 7, 8);
-    //writeln(a.length);
-    //foreach (e; a) writeln(e);
     assert(a == Array!int(0, 1, 2, 3, 6, 7, 8));
 }
 
@@ -1159,7 +1161,7 @@ unittest //6998
     assert(i == 0);
     auto c = new C();
     assert(i == 1);
-    
+
     //scope
     {
         auto arr = Array!C(c);
@@ -1963,8 +1965,6 @@ if (is(Unqual!T == bool))
         length = length - r.length;
         return this[r._a .. length];
     }
-    /// ditto
-    alias stableLinearRemove = linearRemove;
 }
 
 unittest
