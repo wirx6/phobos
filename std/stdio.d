@@ -75,6 +75,16 @@ version (FreeBSD)
     version = GENERIC_IO;
 }
 
+version (Solaris)
+{
+    version = GENERIC_IO;
+}
+
+version (Android)
+{
+    version = GENERIC_IO;
+}
+
 version(Windows)
 {
     // core.stdc.stdio.fopen expects file names to be
