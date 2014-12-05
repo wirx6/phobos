@@ -168,6 +168,9 @@ of values, e.g. $(D if (v.among(1, 2, 3)) // `v` is 1, 2 or 3))
 $(TR $(TDNW $(LREF castSwitch)) $(TD $(D (new A()).castSwitch((A a)=>1,(B
 b)=>2)) returns $(D 1).)
 )
+$(TR $(TDNW $(LREF clamp)) $(TD $(D clamp(1, 3, 6)) returns $(D
+3). $(D clamp(4, 3, 6)) returns $(D 4).)
+)
 $(TR $(TDNW $(LREF cmp)) $(TD $(D cmp("abc", "abcd")) is $(D
 -1), $(D cmp("abc", "aba")) is $(D 1), and $(D cmp("abc", "abc")) is
 $(D 0).)
@@ -190,14 +193,11 @@ $(TR $(TDNW $(LREF max)) $(TD $(D max(3, 4, 2)) returns $(D
 $(TR $(TDNW $(LREF min)) $(TD $(D min(3, 4, 2)) returns $(D
 2).)
 )
-$(TR $(TDNW $(LREF clamp)) $(TD $(D clamp(1, 3, 6)) returns $(D
-3). $(D clamp(4, 3, 6)) return $(D 4).)
-)
 $(TR $(TDNW $(LREF mismatch)) $(TD $(D mismatch("oh hi",
 "ohayo")) returns $(D tuple(" hi", "ayo")).)
 )
-$(TR $(TDNW $(LREF predSwitch)) $(TD 2.predSwitch(1, "one", 2, "two", 3,
-"three") returns $(D "two").)
+$(TR $(TDNW $(LREF predSwitch)) $(TD $(D 2.predSwitch(1, "one", 2, "two",
+3, "three")) returns $(D "two").)
 )
 $(LEADINGROW Iteration
 )
@@ -388,17 +388,18 @@ Source: $(PHOBOSSRC std/_algorithm.d)
 module std.algorithm;
 //debug = std_algorithm;
 
-import std.functional : unaryFun, binaryFun;
-import std.range;
+// FIXME
+import std.functional; // : unaryFun, binaryFun;
+import std.range.primitives;
+// FIXME
+import std.range; // : SortedRange;
 import std.traits;
-import std.typecons : tuple, Tuple;
-import std.typetuple : TypeTuple, staticMap, allSatisfy, anySatisfy;
+// FIXME
+import std.typecons; // : tuple, Tuple;
+// FIXME
+import std.typetuple; // : TypeTuple, staticMap, allSatisfy, anySatisfy;
 
-version(unittest)
-{
-    debug(std_algorithm) import std.stdio;
-    mixin(dummyRanges);
-}
+version(unittest) debug(std_algorithm) import std.stdio;
 
 private T* addressOf(T)(ref T val) { return &val; }
 
@@ -407,8 +408,8 @@ private T* addressOf(T)(ref T val) { return &val; }
 // Also helps with missing imports errors.
 private template algoFormat()
 {
-    import std.string : format;
-    alias algoFormat = std.string.format;
+    import std.format : format;
+    alias algoFormat = format;
 }
 
 /**
@@ -453,6 +454,7 @@ template map(fun...) if (fun.length >= 1)
 ///
 @safe unittest
 {
+    import std.range : chain;
     int[] arr1 = [ 1, 2, 3, 4 ];
     int[] arr2 = [ 5, 6 ];
     auto squares = map!(a => a * a)(chain(arr1, arr2));
@@ -584,6 +586,7 @@ private struct MapResult(alias fun, Range)
 
             auto opSlice(opSlice_t low, opSlice_t high)
             {
+                import std.range : take;
                 return this[low .. $].take(high - low);
             }
         }
@@ -621,7 +624,9 @@ private struct MapResult(alias fun, Range)
 
 unittest
 {
+    import std.internal.test.dummyrange;
     import std.ascii : toUpper;
+    import std.range;
 
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
@@ -720,6 +725,7 @@ unittest
 
 @safe unittest
 {
+    import std.range;
     auto LL = iota(1L, 4L);
     auto m = map!"a*a"(LL);
     assert(equal(m, [1L, 4L, 9L]));
@@ -727,6 +733,8 @@ unittest
 
 @safe unittest
 {
+    import std.range : iota;
+
     // Issue #10130 - map of iota with const step.
     const step = 2;
     static assert(__traits(compiles, map!(i => i)(iota(0, 10, step))));
@@ -741,6 +749,7 @@ unittest
 
 @safe unittest
 {
+    import std.range;
     //slicing infinites
     auto rr = iota(0, 5).cycle().map!"a * a"();
     alias RR = typeof(rr);
@@ -751,6 +760,7 @@ unittest
 
 @safe unittest
 {
+    import std.range;
     struct S {int* p;}
     auto m = immutable(S).init.repeat().map!"a".save;
 }
@@ -866,6 +876,7 @@ same cost or side effects.
 
 @safe unittest
 {
+    import std.range;
     auto a = [1, 2, 3, 4];
     assert(equal(a.map!"(a - 1)*a"().cache(),                      [ 0, 2, 6, 12]));
     assert(equal(a.map!"(a - 1)*a"().cacheBidirectional().retro(), [12, 6, 2,  0]));
@@ -908,6 +919,7 @@ same cost or side effects.
 
 @safe unittest
 {
+    import std.range;
     auto c = [1, 2, 3].cycle().cache();
     c = c[1 .. $];
     auto d = c[0 .. 1];
@@ -1043,6 +1055,7 @@ private struct Cache(R, bool bidir)
             }
             body
             {
+                import std.range : take;
                 return this[low .. $].take(high - low);
             }
         }
@@ -1192,6 +1205,7 @@ remarkable power and flexibility.
 @safe unittest
 {
     import std.math : approxEqual;
+    import std.range;
 
     int[] arr = [ 1, 2, 3, 4, 5 ];
     // Sum all elements
@@ -1265,6 +1279,7 @@ The number of seeds must be correspondingly increased.
 unittest
 {
     import std.exception : assertThrown;
+    import std.range;
 
     double[] a = [ 3, 4 ];
     auto r = reduce!("a + b")(0.0, a);
@@ -1521,6 +1536,8 @@ private auto sumKahan(Result, R)(Result result, R r)
 /// Ditto
 @safe pure nothrow unittest
 {
+    import std.range;
+
     //simple integral sumation
     assert(sum([ 1, 2, 3, 4]) == 10);
 
@@ -1604,6 +1621,8 @@ private auto sumKahan(Result, R)(Result result, R r)
 unittest
 {
     import std.bigint;
+    import std.range;
+
     immutable BigInt[] a = BigInt("1_000_000_000_000_000_000").repeat(10).array();
     immutable ulong[]  b = (ulong.max/2).repeat(10).array();
     auto sa = a.sum();
@@ -1648,6 +1667,7 @@ void fill(Range, Value)(Range range, Value filler)
 @safe unittest
 {
     import std.conv : text;
+    import std.internal.test.dummyrange;
 
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
@@ -1797,6 +1817,7 @@ void fill(Range1, Range2)(Range1 range, Range2 filler)
 @safe unittest
 {
     import std.exception : assertThrown;
+    import std.internal.test.dummyrange;
 
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
@@ -2013,6 +2034,7 @@ template filter(alias pred) if (is(typeof(unaryFun!pred)))
 @safe unittest
 {
     import std.math : approxEqual;
+    import std.range;
 
     int[] arr = [ 1, 2, 3, 4, 5 ];
 
@@ -2085,6 +2107,9 @@ private struct FilterResult(alias pred, Range)
 
 @safe unittest
 {
+    import std.internal.test.dummyrange;
+    import std.range;
+
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
     int[] a = [ 3, 4, 2 ];
@@ -2193,6 +2218,7 @@ template filterBidirectional(alias pred)
 ///
 @safe unittest
 {
+    import std.range;
     int[] arr = [ 1, 2, 3, 4, 5 ];
     auto small = filterBidirectional!("a < 3")(arr);
     static assert(isBidirectionalRange!(typeof(small)));
@@ -2952,6 +2978,7 @@ if (is(typeof(ElementType!Range.init == Separator.init))
         {
             static IndexType lastIndexOf(Range haystack, Separator needle)
             {
+                import std.range : retro;
                 auto r = haystack.retro().find(needle);
                 return r.retro().length - 1;
             }
@@ -3091,6 +3118,9 @@ if (is(typeof(ElementType!Range.init == Separator.init))
 
 @safe unittest
 {
+    import std.internal.test.dummyrange;
+    import std.algorithm;
+
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
     assert(equal(splitter("hello  world", ' '), [ "hello", "", "world" ]));
@@ -3151,6 +3181,8 @@ if (is(typeof(ElementType!Range.init == Separator.init))
 }
 @safe unittest
 {
+    import std.algorithm;
+    import std.range;
     auto L = retro(iota(1L, 10L));
     auto s = splitter(L, 5L);
     assert(equal(s.front, [9L, 8L, 7L, 6L]));
@@ -3212,6 +3244,7 @@ if (is(typeof(Range.init.front == Separator.init.front) : bool)
             // compute back length
             static if (isBidirectionalRange!Range && isBidirectionalRange!Separator)
             {
+                import std.range : retro;
                 _backLength = _input.length -
                     find(retro(_input), retro(_separator)).source.length;
             }
@@ -3329,6 +3362,7 @@ if (is(typeof(Range.init.front == Separator.init.front) : bool)
 @safe unittest
 {
     import std.conv : text;
+    import std.array : split;
 
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
@@ -3473,7 +3507,10 @@ private struct SplitterResult(alias isTerminator, Range)
         static if (fullSlicing)
             return _input[0 .. _end];
         else
+        {
+            import std.range : takeExactly;
             return _input.takeExactly(_end);
+        }
     }
 
     void popFront()
@@ -3521,6 +3558,8 @@ private struct SplitterResult(alias isTerminator, Range)
 
 @safe unittest
 {
+    import std.range : iota;
+
     auto L = iota(1L, 10L);
     auto s = splitter(L, [5L, 6L]);
     assert(equal(s.front, [1L, 2L, 3L, 4L]));
@@ -3532,6 +3571,8 @@ private struct SplitterResult(alias isTerminator, Range)
 
 @safe unittest
 {
+    import std.internal.test.dummyrange;
+
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
     void compare(string sentence, string[] witness)
@@ -3565,6 +3606,7 @@ private struct SplitterResult(alias isTerminator, Range)
 
 @safe unittest
 {
+    import std.range;
     struct Entry
     {
         int low;
@@ -3591,7 +3633,7 @@ private struct SplitterResult(alias isTerminator, Range)
     import std.uni : isWhite;
 
     //@@@6791@@@
-    assert(equal(std.array.splitter("là dove terminava quella valle"), ["là", "dove", "terminava", "quella", "valle"]));
+    assert(equal(splitter("là dove terminava quella valle"), ["là", "dove", "terminava", "quella", "valle"]));
     assert(equal(splitter!(std.uni.isWhite)("là dove terminava quella valle"), ["là", "dove", "terminava", "quella", "valle"]));
     assert(equal(splitter!"a=='本'"("日本語"), ["日", "語"]));
 }
@@ -3617,14 +3659,14 @@ if (isSomeChar!C)
         {
             import std.uni : isWhite;
 
-            auto r = find!(std.uni.isWhite)(_s);
+            auto r = find!(isWhite)(_s);
             _frontLength = _s.length - r.length;
         }
 
     public:
         this(C[] s) pure @safe
         {
-            import std.string;
+            import std.string : strip;
             _s = s.strip();
             getFirst();
         }
@@ -3690,7 +3732,7 @@ if (isSomeChar!C)
     lines[1] = "line \ttwo".dup;
     lines[2] = "yah            last   line\ryah".dup;
     foreach (line; lines) {
-       foreach (word; std.array.splitter(std.string.strip(line))) {
+       foreach (word; splitter(strip(line))) {
             if (word in dictionary) continue; // Nothing to do
             auto newID = dictionary.length;
             dictionary[to!string(word)] = cast(uint)newID;
@@ -3707,7 +3749,7 @@ if (isSomeChar!C)
 @safe unittest
 {
     import std.conv : text;
-    import std.string : split;
+    import std.array : split;
 
     // Check consistency:
     // All flavors of split should produce the same results
@@ -3960,13 +4002,17 @@ if (isInputRange!RoR && isInputRange!(ElementType!RoR)
 
 unittest
 {
+    import std.range.primitives;
+    import std.range.interfaces;
     // joiner() should work for non-forward ranges too.
-    InputRange!string r = inputRangeObject(["abc", "def"]);
+    auto r = inputRangeObject(["abc", "def"]);
     assert (equal(joiner(r, "xyz"), "abcxyzdef"));
 }
 
 unittest
 {
+    import std.range;
+
     // Related to issue 8061
     auto r = joiner([
         inputRangeObject("abc"),
@@ -4148,6 +4194,9 @@ if (isInputRange!RoR && isInputRange!(ElementType!RoR))
 
 unittest
 {
+    import std.range.interfaces;
+    import std.range : repeat;
+
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
     static assert(isInputRange!(typeof(joiner([""]))));
@@ -4236,7 +4285,7 @@ unittest
         dstring[] _values;
         this(dstring[] values)
         {
-	    _buf.length = 128;
+            _buf.length = 128;
             _values = values;
         }
         @property bool empty()
@@ -4273,6 +4322,7 @@ unittest
 // Issue 8061
 unittest
 {
+    import std.range.interfaces;
     import std.conv : to;
 
     auto r = joiner([inputRangeObject("ab"), inputRangeObject("cd")]);
@@ -4366,6 +4416,9 @@ private struct UniqResult(alias pred, Range)
 
 @safe unittest
 {
+    import std.internal.test.dummyrange;
+    import std.range;
+
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
     int[] arr = [ 1, 2, 2, 2, 2, 3, 4, 4, 4, 5 ];
@@ -4473,6 +4526,8 @@ Group!(pred, Range) group(alias pred = "a == b", Range)(Range r)
 
 @safe unittest
 {
+    import std.internal.test.dummyrange;
+
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
     int[] arr = [ 1, 2, 2, 2, 2, 3, 4, 4, 4, 5 ];
@@ -4493,12 +4548,23 @@ Group!(pred, Range) group(alias pred = "a == b", Range)(Range r)
 }
 
 
+// Used by groupBy.
+/**
+ * Specifies whether a predicate is an equivalence relation.
+ */
+import std.typecons : Flag;
+alias EquivRelation = Flag!"equivRelation";
+
 // Used by implementation of groupBy.
-private struct GroupByChunkImpl(alias equivFun, Range)
+private struct GroupByChunkImpl(alias pred, EquivRelation equivRelation, Range)
 {
-    alias equiv = binaryFun!equivFun;
+    alias fun = binaryFun!pred;
 
     private Range r;
+    static if (!equivRelation)
+        private bool first = true;
+    else
+        private enum first = false;
 
     /* For forward ranges, using .save is more reliable than blindly assuming
      * that the current value of .front will persist past a .popFront. However,
@@ -4512,9 +4578,10 @@ private struct GroupByChunkImpl(alias equivFun, Range)
             r = _r.save;
             prev = _prev.save;
         }
+        private void savePrev() { prev = r.save; }
         @property bool empty()
         {
-            return r.empty || !equiv(prev.front, r.front);
+            return r.empty || (!first && !fun(prev.front, r.front));
         }
     }
     else
@@ -4525,9 +4592,10 @@ private struct GroupByChunkImpl(alias equivFun, Range)
             r = _r;
             prev = _prev;
         }
+        private void savePrev() { prev = r.front; }
         @property bool empty()
         {
-            return r.empty || !equiv(prev, r.front);
+            return r.empty || (!first && !fun(prev, r.front));
         }
     }
 
@@ -4541,6 +4609,14 @@ private struct GroupByChunkImpl(alias equivFun, Range)
     }
     body
     {
+        // If this is a non-equivalence relation, we cannot assume transitivity
+        // so we have to update .prev at every step.
+        static if (!equivRelation)
+        {
+            savePrev();
+            first = false;
+        }
+
         r.popFront();
     }
 
@@ -4557,9 +4633,9 @@ private struct GroupByChunkImpl(alias equivFun, Range)
 }
 
 // Implementation of groupBy.
-private struct GroupByImpl(alias equivFun, Range)
+private struct GroupByImpl(alias pred, EquivRelation equivRelation, Range)
 {
-    alias equiv = binaryFun!equivFun;
+    alias fun = binaryFun!pred;
 
     private Range r;
 
@@ -4584,7 +4660,14 @@ private struct GroupByImpl(alias equivFun, Range)
     {
         r = _r;
         if (!empty)
+        {
+            // Check reflexivity if predicate is claimed to be an equivalence
+            // relation.
+            assert(!equivRelation || pred(r.front, r.front),
+                   "predicate " ~ pred.stringof ~ " is claimed to be "~
+                   "equivalence relation yet isn't reflexive");
             savePrev();
+        }
     }
     @property bool empty() { return r.empty; }
 
@@ -4596,19 +4679,32 @@ private struct GroupByImpl(alias equivFun, Range)
     }
     body
     {
-        return GroupByChunkImpl!(equivFun, Range)(r, _prev);
+        return GroupByChunkImpl!(pred, equivRelation, Range)(r, _prev);
     }
 
     void popFront()
     {
         while (!r.empty)
         {
-            if (!equiv(prev, r.front))
+            static if (equivRelation)
             {
-                savePrev();
-                return;
+                if (!fun(prev, r.front))
+                {
+                    savePrev();
+                    break;
+                }
+                r.popFront();
             }
-            r.popFront();
+            else
+            {
+                // For non-equivalence relations, we cannot assume transitivity
+                // so we must update prev each time.
+                savePrev();
+                r.popFront();
+
+                if (!r.empty && !fun(prev, r.front))
+                    break;
+            }
         }
     }
 
@@ -4627,13 +4723,31 @@ private struct GroupByImpl(alias equivFun, Range)
 /**
  * Chunks an input range into subranges of equivalent adjacent elements.
  *
- * Equivalence is defined by the predicate $(D equiv), which can be either
+ * Equivalence is defined by the predicate $(D pred), which can be either
  * binary or unary. In the binary form, two _range elements $(D a) and $(D b)
- * are considered equivalent if $(D equiv(a,b)) is true. In unary form, two
- * elements are considered equivalent if $(D equiv(a) == equiv(b)) is true.
+ * are considered equivalent if $(D pred(a,b)) is true. In unary form, two
+ * elements are considered equivalent if $(D pred(a) == pred(b)) is true.
+ *
+ * The optional parameter $(D equivRelation), which defaults to
+ * $(D EquivRelation.no) for binary predicates if not specified, specifies
+ * whether $(D pred) is an equivalence relation, that is, whether it is
+ * reflexive ($(D pred(x,x)) is always true), symmetric ($(D pred(x,y) ==
+ * pred(y,x))), and transitive ($(D pred(x,y) && pred(y,z)) implies
+ * $(D pred(x,z))). When this is the case, $(D groupBy) can take advantage of
+ * these three properties for a slight performance improvement.
+ *
+ * Note that it is not an error to specify $(D EquivRelation.no) even when
+ * $(D pred) is an equivalence relation; the resulting range will just be
+ * slightly slower than it could be. However, if $(D EquivRelation.yes) is
+ * specified yet $(D pred) is actually $(I not) an equivalence relation, the
+ * behaviour of the resulting range is undefined.
+ *
+ * Unary predicates always imply $(D equivRelation.yes), since they are
+ * internally converted to the binary equivalence relation $(D pred(a) ==
+ * pred(b)).
  *
  * Params:
- *  equiv = Predicate for determining equivalence.
+ *  pred = Predicate for determining equivalence.
  *  r = The range to be chunked.
  *
  * Returns: A range of ranges in which all elements in a given subrange are
@@ -4646,24 +4760,27 @@ private struct GroupByImpl(alias equivFun, Range)
  * equivalence. Elements in the subranges will always appear in the same order
  * they appear in the original range.
  *
- * Being an equivalence relation, the binary form of $(D equiv) is assumed to
- * be reflexive (i.e., $(D equiv(a,a)) must be true). If not, unexpected
- * results may be produced.
- *
  * See_also:
  * $(XREF algorithm,group), which collapses adjacent equivalent elements into a
  * single element.
  */
-auto groupBy(alias equiv, Range)(Range r)
+auto groupBy(alias pred, Range)(Range r)
     if (isInputRange!Range)
 {
-    static if (is(typeof(binaryFun!equiv(ElementType!Range.init,
-                                         ElementType!Range.init)) : bool))
-        return GroupByImpl!(equiv, Range)(r);
+    return groupBy!(pred, EquivRelation.no, Range)(r);
+}
+
+/// ditto
+auto groupBy(alias pred, EquivRelation equivRelation, Range)(Range r)
+    if (isInputRange!Range)
+{
+    static if (is(typeof(binaryFun!pred(ElementType!Range.init,
+                                        ElementType!Range.init)) : bool))
+        return GroupByImpl!(pred, equivRelation, Range)(r);
     else static if (is(typeof(
-            unaryFun!equiv(ElementType!Range.init) ==
-            unaryFun!equiv(ElementType!Range.init))))
-        return GroupByImpl!((a,b) => equiv(a) == equiv(b), Range)(r);
+            unaryFun!pred(ElementType!Range.init) ==
+            unaryFun!pred(ElementType!Range.init))))
+        return GroupByImpl!((a,b) => pred(a) == pred(b), EquivRelation.yes, Range)(r);
     else
         static assert(0, "groupBy expects either a binary predicate or "~
                          "a unary predicate on range elements of type: "~
@@ -4681,17 +4798,26 @@ auto groupBy(alias equiv, Range)(Range r)
         [2, 3]
     ];
 
-    auto r1 = data.groupBy!((a,b) => a[0] == b[0]);
+    auto r1 = data.groupBy!((a,b) => a[0] == b[0], EquivRelation.yes);
     assert(r1.equal!equal([
         [[1, 1], [1, 2]],
         [[2, 2], [2, 3]]
     ]));
 
-    auto r2 = data.groupBy!((a,b) => a[1] == b[1]);
+    auto r2 = data.groupBy!((a,b) => a[1] == b[1], EquivRelation.yes);
     assert(r2.equal!equal([
         [[1, 1]],
         [[1, 2], [2, 2]],
         [[2, 3]]
+    ]));
+
+    // Grouping by maximum adjacent difference:
+    import std.math : abs;
+    auto r3 = [1, 3, 2, 5, 4, 9, 10].groupBy!((a, b) => abs(a-b) < 3);
+    assert(r3.equal!equal([
+        [1, 3, 2],
+        [5, 4],
+        [9, 10]
     ]));
 }
 
@@ -4804,6 +4930,18 @@ pure @safe nothrow unittest
         assert(byY.empty);
         assert(range.empty);
     }
+}
+
+// Issue 13595
+unittest
+{
+    auto r = [1, 2, 3, 4, 5, 6, 7, 8, 9].groupBy!((x, y) => ((x*y) % 3) == 0);
+    assert(r.equal!equal([
+        [1],
+        [2, 3, 4],
+        [5, 6, 7],
+        [8, 9]
+    ]));
 }
 
 
@@ -5159,6 +5297,84 @@ if (isInputRange!InputRange &&
 }
 
 /**
+Advances the input range $(D haystack) by calling $(D haystack.popFront)
+until either $(D pred(haystack.front)), or $(D
+haystack.empty). Performs $(BIGOH haystack.length) evaluations of $(D
+pred).
+
+To _find the last element of a bidirectional $(D haystack) satisfying
+$(D pred), call $(D find!(pred)(retro(haystack))). See $(XREF
+range, retro).
+
+See_Also:
+     $(WEB sgi.com/tech/stl/find_if.html, STL's find_if)
+*/
+InputRange find(alias pred, InputRange)(InputRange haystack)
+if (isInputRange!InputRange)
+{
+    alias R = InputRange;
+    alias predFun = unaryFun!pred;
+    static if (isNarrowString!R)
+    {
+        import std.utf : decode;
+
+        immutable len = haystack.length;
+        size_t i = 0, next = 0;
+        while (next < len)
+        {
+            if (predFun(decode(haystack, next)))
+                return haystack[i .. $];
+            i = next;
+        }
+        return haystack[$ .. $];
+    }
+    else static if (!isInfinite!R && hasSlicing!R && is(typeof(haystack[cast(size_t)0 .. $])))
+    {
+        size_t i = 0;
+        foreach (ref e; haystack)
+        {
+            if (predFun(e))
+                return haystack[i .. $];
+            ++i;
+        }
+        return haystack[$ .. $];
+    }
+    else
+    {
+        //standard range
+        for ( ; !haystack.empty; haystack.popFront() )
+        {
+            if (predFun(haystack.front))
+                break;
+        }
+        return haystack;
+    }
+}
+
+///
+@safe unittest
+{
+    auto arr = [ 1, 2, 3, 4, 1 ];
+    assert(find!("a > 2")(arr) == [ 3, 4, 1 ]);
+
+    // with predicate alias
+    bool pred(int x) { return x + 1 > 1.5; }
+    assert(find!(pred)(arr) == arr);
+}
+
+@safe pure unittest
+{
+    //scope(success) writeln("unittest @", __FILE__, ":", __LINE__, " done.");
+    int[] r = [ 1, 2, 3 ];
+    assert(find!(a=>a > 2)(r) == [3]);
+    bool pred(int x) { return x + 1 > 1.5; }
+    assert(find!(pred)(r) == r);
+
+    assert(find!(a=>a > 'v')("hello world") == "world");
+    assert(find!(a=>a%4 == 0)("日本語") == "本語");
+}
+
+/**
 Finds a forward range in another. Elements are compared for
 equality. Performs $(BIGOH walkLength(haystack) * walkLength(needle))
 comparisons in the worst case. Specializations taking advantage of
@@ -5373,6 +5589,8 @@ if (isRandomAccessRange!R1 && isForwardRange!R2 && !isBidirectionalRange!R2 &&
 //Bug# 8334
 @safe unittest
 {
+    import std.range;
+
     auto haystack = [1, 2, 3, 4, 1, 9, 12, 42];
     auto needle = [12, 42, 27];
 
@@ -5488,18 +5706,16 @@ Finds two or more $(D needles) into a $(D haystack). The predicate $(D
 pred) is used throughout to compare elements. By default, elements are
 compared for equality.
 
-$(D BoyerMooreFinder) allocates GC memory.
-
 Params:
 
-haystack = The target of the search. Must be an $(GLOSSARY input
-range). If any of $(D needles) is a range with elements comparable to
-elements in $(D haystack), then $(D haystack) must be a $(GLOSSARY
-forward range) such that the search can backtrack.
+haystack = The target of the search. Must be an input range.
+If any of $(D needles) is a range with elements comparable to
+elements in $(D haystack), then $(D haystack) must be a forward range
+such that the search can backtrack.
 
 needles = One or more items to search for. Each of $(D needles) must
 be either comparable to one element in $(D haystack), or be itself a
-$(GLOSSARY forward range) with elements comparable with elements in
+forward range with elements comparable with elements in
 $(D haystack).
 
 Returns:
@@ -5568,7 +5784,7 @@ if (Ranges.length > 1 && is(typeof(startsWith!pred(haystack, needles))))
 
 @safe unittest
 {
-    import std.string : toUpper;
+    import std.uni : toUpper;
 
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
@@ -5617,6 +5833,8 @@ if (Ranges.length > 1 && is(typeof(startsWith!pred(haystack, needles))))
 
 @safe unittest
 {
+    import std.internal.test.dummyrange;
+
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
     int[] a = [ -1, 0, 1, 2, 3, 4, 5 ];
@@ -5629,6 +5847,23 @@ if (Ranges.length > 1 && is(typeof(startsWith!pred(haystack, needles))))
         auto findRes = find(d, 5);
         assert(equal(findRes, [5,6,7,8,9,10]));
     }
+}
+
+/**
+ * Sets up Boyer-Moore matching for use with $(D find) below.
+ * By default, elements are compared for equality.
+ * 
+ * $(D BoyerMooreFinder) allocates GC memory.
+ * 
+ * Params:
+ * pred = Predicate used to compare elements.
+ * needle = A random-access range with length and slicing.
+ */
+BoyerMooreFinder!(binaryFun!(pred), Range) boyerMooreFinder
+(alias pred = "a == b", Range)
+(Range needle) if (isRandomAccessRange!(Range) || isSomeString!Range)
+{
+    return typeof(return)(needle);
 }
 
 /// Ditto
@@ -5725,15 +5960,18 @@ public:
     alias opDollar = length;
 }
 
-/// Ditto
-BoyerMooreFinder!(binaryFun!(pred), Range) boyerMooreFinder
-(alias pred = "a == b", Range)
-(Range needle) if (isRandomAccessRange!(Range) || isSomeString!Range)
-{
-    return typeof(return)(needle);
-}
-
-// Oddly this is not disabled by bug 4759
+/**
+ * Finds $(D needle) in $(D haystack) efficiently using the
+ * $(LUCKY Boyer-Moore) method.
+ * 
+ * Params:
+ * haystack = A random-access range with length and slicing.
+ * needle = A $(LREF BoyerMooreFinder).
+ * 
+ * Returns:
+ * $(D haystack) advanced such that $(D needle) is a prefix of it (if no
+ * such position exists, returns $(D haystack) advanced to termination).
+ */
 Range1 find(Range1, alias pred, Range2)(
     Range1 haystack, BoyerMooreFinder!(pred, Range2) needle)
 {
@@ -5752,10 +5990,14 @@ Range1 find(Range1, alias pred, Range2)(
         auto p = find(h, boyerMooreFinder(n));
         assert(!p.empty);
     }
+}
 
+///
+@safe unittest
+{
     int[] a = [ -1, 0, 1, 2, 3, 4, 5 ];
     int[] b = [ 1, 2, 3 ];
-    //writeln(find(a, boyerMooreFinder(b)));
+
     assert(find(a, boyerMooreFinder(b)) == [ 1, 2, 3, 4, 5 ]);
     assert(find(b, boyerMooreFinder(a)).empty);
 }
@@ -5765,84 +6007,6 @@ Range1 find(Range1, alias pred, Range2)(
     auto bm = boyerMooreFinder("for");
     auto match = find("Moor", bm);
     assert(match.empty);
-}
-
-/**
-Advances the input range $(D haystack) by calling $(D haystack.popFront)
-until either $(D pred(haystack.front)), or $(D
-haystack.empty). Performs $(BIGOH haystack.length) evaluations of $(D
-pred).
-
-To find the last element of a bidirectional $(D haystack) satisfying
-$(D pred), call $(D find!(pred)(retro(haystack))). See $(XREF
-range, retro).
-
-See_Also:
-     $(WEB sgi.com/tech/stl/find_if.html, STL's find_if)
-*/
-InputRange find(alias pred, InputRange)(InputRange haystack)
-if (isInputRange!InputRange)
-{
-    alias R = InputRange;
-    alias predFun = unaryFun!pred;
-    static if (isNarrowString!R)
-    {
-        import std.utf : decode;
-
-        immutable len = haystack.length;
-        size_t i = 0, next = 0;
-        while (next < len)
-        {
-            if (predFun(decode(haystack, next)))
-                return haystack[i .. $];
-            i = next;
-        }
-        return haystack[$ .. $];
-    }
-    else static if (!isInfinite!R && hasSlicing!R && is(typeof(haystack[cast(size_t)0 .. $])))
-    {
-        size_t i = 0;
-        foreach (ref e; haystack)
-        {
-            if (predFun(e))
-                return haystack[i .. $];
-            ++i;
-        }
-        return haystack[$ .. $];
-    }
-    else
-    {
-        //standard range
-        for ( ; !haystack.empty; haystack.popFront() )
-        {
-            if (predFun(haystack.front))
-                break;
-        }
-        return haystack;
-    }
-}
-
-///
-@safe unittest
-{
-    auto arr = [ 1, 2, 3, 4, 1 ];
-    assert(find!("a > 2")(arr) == [ 3, 4, 1 ]);
-
-    // with predicate alias
-    bool pred(int x) { return x + 1 > 1.5; }
-    assert(find!(pred)(arr) == arr);
-}
-
-@safe pure unittest
-{
-    //scope(success) writeln("unittest @", __FILE__, ":", __LINE__, " done.");
-    int[] r = [ 1, 2, 3 ];
-    assert(find!(a=>a > 2)(r) == [3]);
-    bool pred(int x) { return x + 1 > 1.5; }
-    assert(find!(pred)(r) == r);
-
-    assert(find!(a=>a > 'v')("hello world") == "world");
-    assert(find!(a=>a%4 == 0)("日本語") == "本語");
 }
 
 // findSkip
@@ -5921,6 +6085,7 @@ if (isForwardRange!R1 && isForwardRange!R2)
     }
     else
     {
+        import std.range : takeExactly;
         auto original = haystack.save;
         auto h = haystack.save;
         auto n = needle.save;
@@ -5960,6 +6125,7 @@ if (isForwardRange!R1 && isForwardRange!R2)
     }
     else
     {
+        import std.range : takeExactly;
         auto original = haystack.save;
         auto h = haystack.save;
         auto n = needle.save;
@@ -5996,6 +6162,7 @@ if (isForwardRange!R1 && isForwardRange!R2)
     }
     else
     {
+        import std.range : takeExactly;
         auto original = haystack.save;
         auto h = haystack.save;
         auto n = needle.save;
@@ -6132,6 +6299,8 @@ ptrdiff_t countUntil(alias pred = "a == b", R, Rs...)(R haystack, Rs needles)
         }
         else
         {
+            import std.range : dropOne;
+
             if (needles[0].empty)
               return 0;
 
@@ -6220,6 +6389,8 @@ ptrdiff_t countUntil(alias pred = "a == b", R, N)(R haystack, N needle)
 
 @safe unittest
 {
+    import std.internal.test.dummyrange;
+
     assert(countUntil("日本語", "") == 0);
     assert(countUntil("日本語"d, "") == 0);
 
@@ -6310,6 +6481,8 @@ ptrdiff_t countUntil(alias pred, R)(R haystack)
 
 @safe unittest
 {
+    import std.internal.test.dummyrange;
+
     // References
     {
         // input
@@ -6479,6 +6652,7 @@ until(alias pred, Range)
 
 unittest // bugzilla 13171
 {
+    import std.range;
     auto a = [1, 2, 3, 4];
     assert(equal(refRange(&a).until(3, OpenRight.no), [1, 2, 3]));
     assert(a == [4]);
@@ -6672,6 +6846,7 @@ if (isInputRange!R &&
 @safe unittest
 {
     import std.conv : to;
+    import std.range;
 
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
@@ -6685,7 +6860,7 @@ if (isInputRange!R &&
         assert(startsWith(to!S("\uFF28abc"), 'a', '\uFF28', 'c') == 2);
 
         foreach (T; TypeTuple!(char[], wchar[], dchar[], string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             //Lots of strings
             assert(startsWith(to!S("abc"), to!T("")));
             assert(startsWith(to!S("ab"), to!T("a")));
@@ -6718,7 +6893,7 @@ if (isInputRange!R &&
             assert(startsWith(to!S("a"), T.init, "") == 1);
             assert(startsWith(to!S("a"), T.init, 'a') == 1);
             assert(startsWith(to!S("a"), 'a', T.init) == 2);
-        }
+        }();
     }
 
     //Length but no RA
@@ -6811,7 +6986,8 @@ if (is(typeof(binaryFun!pred(r.front, e))))
 }
 
 ///
-@safe unittest {
+@safe unittest
+{
     auto s1 = "Hello world";
     assert(!skipOver(s1, 'a'));
     assert(s1 == "Hello world");
@@ -6949,6 +7125,7 @@ if (isBidirectionalRange!R1 &&
     }
     else
     {
+        import std.range : retro;
         return startsWith!pred(retro(doesThisEnd), retro(withThis));
     }
 }
@@ -6994,7 +7171,7 @@ if (isBidirectionalRange!R &&
         assert(endsWith(to!S("abc\uFF28"), 'a', '\uFF28', 'c') == 2);
 
         foreach (T; TypeTuple!(char[], wchar[], dchar[], string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             //Lots of strings
             assert(endsWith(to!S("abc"), to!T("")));
             assert(!endsWith(to!S("abc"), to!T("a")));
@@ -7024,7 +7201,7 @@ if (isBidirectionalRange!R &&
             assert(endsWith(to!S("a"), T.init, "") == 1);
             assert(endsWith(to!S("a"), T.init, 'a') == 1);
             assert(endsWith(to!S("a"), 'a', T.init) == 2);
-        }
+        }();
     }
 
     foreach (T; TypeTuple!(int, short))
@@ -7094,6 +7271,7 @@ if (isForwardRange!R1 && isInputRange!R2 &&
     }
     else
     {
+        import std.range : takeExactly;
         auto result = r1.save;
         size_t i = 0;
         for (;
@@ -7170,6 +7348,7 @@ if (isNarrowString!R1 && isNarrowString!R2)
     import std.conv : to;
     import std.exception : assertThrown;
     import std.utf : UTFException;
+    import std.range;
 
     assert(commonPrefix([1, 2, 3], [1, 2, 3, 4, 5]) == [1, 2, 3]);
     assert(commonPrefix([1, 2, 3, 4, 5], [1, 2, 3]) == [1, 2, 3]);
@@ -7185,7 +7364,7 @@ if (isNarrowString!R1 && isNarrowString!R2)
                            dchar[], const(dchar)[], dstring))
     {
         foreach(T; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             assert(commonPrefix(to!S(""), to!T("")).empty);
             assert(commonPrefix(to!S(""), to!T("hello")).empty);
             assert(commonPrefix(to!S("hello"), to!T("")).empty);
@@ -7205,7 +7384,7 @@ if (isNarrowString!R1 && isNarrowString!R2)
                                 to!T("\U0010FFFF\U0010FFFB\U0010FFFE")) == to!S("\U0010FFFF\U0010FFFB"));
             assert(commonPrefix!"a != b"(to!S("Пиво"), to!T("онво")) == to!S("Пи"));
             assert(commonPrefix!"a != b"(to!S("онво"), to!T("Пиво")) == to!S("он"));
-        }
+        }();
 
         static assert(is(typeof(commonPrefix(to!S("Пиво"), filter!"true"("Пони"))) == S));
         assert(equal(commonPrefix(to!S("Пиво"), filter!"true"("Пони")), to!S("П")));
@@ -7264,6 +7443,9 @@ Range findAdjacent(alias pred = "a == b", Range)(Range r)
 
 @safe unittest
 {
+    import std.internal.test.dummyrange;
+    import std.range;
+
     //scope(success) writeln("unittest @", __FILE__, ":", __LINE__, " done.");
     int[] a = [ 11, 10, 10, 9, 8, 8, 7, 8, 9 ];
     auto p = findAdjacent(a);
@@ -7575,8 +7757,8 @@ range of range (of range...) comparisons.
  +/
 @safe unittest
 {
-    import std.algorithm : equal;
     import std.range : iota, chunks;
+    import std.algorithm : equal;
     assert(equal!(equal!equal)(
         [[[0, 1], [2, 3]], [[4, 5], [6, 7]]],
         iota(0, 8).chunks(2).chunks(2)
@@ -7586,6 +7768,7 @@ range of range (of range...) comparisons.
 @safe unittest
 {
     import std.math : approxEqual;
+    import std.internal.test.dummyrange;
 
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
@@ -8131,6 +8314,7 @@ unittest
 {
     import std.conv : text;
     import std.exception : assertThrown;
+    import std.internal.test.dummyrange;
 
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
@@ -8251,6 +8435,8 @@ Range minPos(alias pred = "a < b", Range)(Range range)
 
 @safe unittest
 {
+    import std.internal.test.dummyrange;
+
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
     int[] a = [ 2, 3, 4, 1, 2, 4, 1, 1, 2 ];
@@ -8729,11 +8915,12 @@ range elements, different types of ranges are accepted:
 }
 
 /**
-To _copy at most $(D n) elements from a range, you may want to use 
+To _copy at most $(D n) elements from a range, you may want to use
 $(XREF range, take):
 */
 @safe unittest
 {
+    import std.range;
     int[] src = [ 1, 5, 8, 9, 10 ];
     auto dest = new int[3];
     copy(take(src, dest.length), dest);
@@ -8741,7 +8928,7 @@ $(XREF range, take):
 }
 
 /**
-To _copy just those elements from a range that satisfy a predicate you 
+To _copy just those elements from a range that satisfy a predicate you
 may want to use $(LREF filter):
 */
 @safe unittest
@@ -9104,6 +9291,7 @@ See_Also:
 size_t bringToFront(Range1, Range2)(Range1 front, Range2 back)
     if (isInputRange!Range1 && isForwardRange!Range2)
 {
+    import std.range: Take, take;
     enum bool sameHeadExists = is(typeof(front.sameHead(back)));
     size_t result;
     for (bool semidone; !front.empty && !back.empty; )
@@ -9529,6 +9717,7 @@ if (s == SwapStrategy.stable
 @safe unittest
 {
     import std.exception : assertThrown;
+    import std.range;
 
     // http://d.puremagic.com/issues/show_bug.cgi?id=10173
     int[] test = iota(0, 10).array();
@@ -9540,6 +9729,7 @@ if (s == SwapStrategy.stable
 
 @safe unittest
 {
+    import std.range;
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
     int[] a = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ];
@@ -9593,6 +9783,7 @@ if (s == SwapStrategy.stable
 
 @safe unittest
 {
+    import std.range;
     // Bug# 12889
     int[1][] arr = [[0], [1], [2], [3], [4], [5], [6]];
     auto orig = arr.dup;
@@ -10236,7 +10427,6 @@ See_Also:
     $(XREF algorithm, SwapStrategy)$(BR)
     $(XREF functional, binaryFun)
 */
-
 SortedRange!(Range, less)
 sort(alias less = "a < b", SwapStrategy ss = SwapStrategy.unstable,
         Range)(Range r)
@@ -10252,6 +10442,7 @@ sort(alias less = "a < b", SwapStrategy ss = SwapStrategy.unstable,
        Stable sorting uses TimSort, which needs to copy elements into a buffer,
        requiring assignable elements. +/
 {
+    import std.range : assumeSorted;
     alias lessFun = binaryFun!(less);
     alias LessRet = typeof(lessFun(r.front, r.front));    // instantiate lessFun
     static if (is(LessRet == bool))
@@ -10298,7 +10489,7 @@ unittest
 unittest
 {
     import std.random : Random, unpredictableSeed, uniform;
-    import std.string : toUpper;
+    import std.uni : toUpper;
 
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
@@ -10471,6 +10662,7 @@ template multiSort(less...) //if (less.length > 1)
 
 @safe unittest
 {
+    import std.range;
     static struct Point { int x, y; }
     auto pts1 = [ Point(5, 6), Point(1, 0), Point(5, 7), Point(1, 1), Point(1, 2), Point(0, 1) ];
     auto pts2 = [ Point(0, 1), Point(1, 0), Point(1, 1), Point(1, 2), Point(5, 6), Point(5, 7) ];
@@ -10738,6 +10930,7 @@ private template HeapSortImpl(alias less, Range)
 private template TimSortImpl(alias pred, R)
 {
     import core.bitop : bsr;
+    import std.array : uninitializedArray;
 
     static assert(isRandomAccessRange!R);
     static assert(hasLength!R);
@@ -11324,6 +11517,7 @@ unittest
 unittest
 {
     //test stable sort + zip
+    import std.range;
     auto x = [10, 50, 60, 60, 20];
     dchar[] y = "abcde"d.dup;
 
@@ -11378,6 +11572,7 @@ schwartzSort(alias transform, alias less = "a < b",
     import core.stdc.stdlib : malloc, free;
     import std.conv : emplace;
     import std.string : representation;
+    import std.range : zip, SortedRange;
 
     alias T = typeof(unaryFun!transform(r.front));
     auto xform1 = (cast(T*) malloc(r.length * T.sizeof))[0 .. r.length];
@@ -11525,6 +11720,7 @@ void completeSort(alias less = "a < b", SwapStrategy ss = SwapStrategy.unstable,
         Range1, Range2)(SortedRange!(Range1, less) lhs, Range2 rhs)
 if (hasLength!(Range2) && hasSlicing!(Range2))
 {
+    import std.range : chain, assumeSorted;
     // Probably this algorithm can be optimized by using in-place
     // merge
     auto lhsOriginal = lhs.release();
@@ -11540,6 +11736,7 @@ if (hasLength!(Range2) && hasSlicing!(Range2))
 ///
 unittest
 {
+    import std.range : assumeSorted;
     int[] a = [ 1, 2, 3 ];
     int[] b = [ 4, 0, 6, 5 ];
     completeSort(assumeSorted(a), b);
@@ -12892,42 +13089,6 @@ version(unittest)
         }
         return result;
     }
-
-        //Reference type input range
-    private class ReferenceInputRange(T)
-    {
-        this(Range)(Range r) if (isInputRange!Range) {_payload = array(r);}
-        final @property ref T front(){return _payload.front;}
-        final void popFront(){_payload.popFront();}
-        final @property bool empty(){return _payload.empty;}
-        protected T[] _payload;
-    }
-
-    //Reference forward range
-    private class ReferenceForwardRange(T) : ReferenceInputRange!T
-    {
-        this(Range)(Range r) if (isInputRange!Range) {super(r);}
-        final @property ReferenceForwardRange save()
-        {return new ReferenceForwardRange!T(_payload);}
-    }
-
-    //Infinite input range
-    private class ReferenceInfiniteInputRange(T)
-    {
-        this(T first = T.init) {_val = first;}
-        final @property T front(){return _val;}
-        final void popFront(){++_val;}
-        enum bool empty = false;
-        protected T _val;
-    }
-
-    //Infinite forward range
-    private class ReferenceInfiniteForwardRange(T) : ReferenceInfiniteInputRange!T
-    {
-        this(T first = T.init) {super(first);}
-        final @property ReferenceInfiniteForwardRange save()
-        {return new ReferenceInfiniteForwardRange!T(_val);}
-    }
 }
 
 // NWayUnion
@@ -13239,6 +13400,7 @@ bool nextPermutation(alias less="a < b", BidirectionalRange)
     if (isBidirectionalRange!BidirectionalRange &&
         hasSwappableElements!BidirectionalRange)
 {
+    import std.range : retro, takeExactly;
     // Ranges of 0 or 1 element have no distinct permutations.
     if (range.empty) return false;
 
@@ -13485,6 +13647,7 @@ bool nextEvenPermutation(alias less="a < b", BidirectionalRange)
     if (isBidirectionalRange!BidirectionalRange &&
         hasSwappableElements!BidirectionalRange)
 {
+    import std.range : retro, takeExactly;
     // Ranges of 0 or 1 element have no distinct permutations.
     if (range.empty) return false;
 
@@ -13823,7 +13986,7 @@ auto castSwitch(choices...)(Object switchObject)
 ///
 unittest
 {
-    import std.string : format;
+    import std.format : format;
 
     class A
     {
@@ -13971,6 +14134,7 @@ auto cartesianProduct(R1, R2)(R1 range1, R2 range2)
     {
         static if (isForwardRange!R1 && isForwardRange!R2)
         {
+            import std.range : zip, repeat, take, chain, sequence;
             // This algorithm traverses the cartesian product by alternately
             // covering the right and bottom edges of an increasing square area
             // over the infinite table of combinations. This schedule allows us
@@ -13988,11 +14152,13 @@ auto cartesianProduct(R1, R2)(R1 range1, R2 range2)
     }
     else static if (isInputRange!R1 && isForwardRange!R2 && !isInfinite!R2)
     {
+        import std.range : zip, repeat;
         return joiner(map!((ElementType!R1 a) => zip(repeat(a), range2.save))
                           (range1));
     }
     else static if (isInputRange!R2 && isForwardRange!R1 && !isInfinite!R1)
     {
+        import std.range : zip, repeat;
         return joiner(map!((ElementType!R2 a) => zip(range1.save, repeat(a)))
                           (range2));
     }
@@ -14003,6 +14169,8 @@ auto cartesianProduct(R1, R2)(R1 range1, R2 range2)
 ///
 @safe unittest
 {
+    import std.range;
+
     auto N = sequence!"n"(0);         // the range of natural numbers
     auto N2 = cartesianProduct(N, N); // the range of all pairs of natural numbers
 
@@ -14030,6 +14198,7 @@ auto cartesianProduct(R1, R2)(R1 range1, R2 range2)
 @safe unittest
 {
     // Test cartesian product of two infinite ranges
+    import std.range;
     auto Even = sequence!"2*n"(0);
     auto Odd = sequence!"2*n+1"(0);
     auto EvenOdd = cartesianProduct(Even, Odd);
@@ -14050,6 +14219,7 @@ auto cartesianProduct(R1, R2)(R1 range1, R2 range2)
 {
     // Test cartesian product of an infinite input range and a finite forward
     // range.
+    import std.range;
     auto N = sequence!"n"(0);
     auto M = [100, 200, 300];
     auto NM = cartesianProduct(N,M);
@@ -14108,6 +14278,7 @@ auto cartesianProduct(R1, R2)(R1 range1, R2 range2)
 
 @safe unittest
 {
+    import std.range;
     auto N = sequence!"n"(0);
 
     // To force the template to fall to the second case, we wrap N in a struct
@@ -14205,7 +14376,7 @@ pure nothrow @safe @nogc unittest
 /// ditto
 auto cartesianProduct(RR...)(RR ranges)
     if (ranges.length >= 2 &&
-    	allSatisfy!(isForwardRange, RR) &&
+        allSatisfy!(isForwardRange, RR) &&
         !anySatisfy!(isInfinite, RR))
 {
     // This overload uses a much less template-heavy implementation when
@@ -14235,6 +14406,7 @@ auto cartesianProduct(RR...)(RR ranges)
         }
         @property auto front()
         {
+            import std.range : iota;
             return mixin(algoFormat("tuple(%(current[%d].front%|,%))",
                                     iota(0, current.length)));
         }
@@ -14308,6 +14480,7 @@ auto cartesianProduct(R1, R2, RR...)(R1 range1, R2 range2, RR otherRanges)
      * one level of tuples so that a ternary cartesian product, for example,
      * returns 3-element tuples instead of nested 2-element tuples.
      */
+    import std.range : iota;
     enum string denest = algoFormat("tuple(a[0], %(a[1][%d]%|,%))",
                                 iota(0, otherRanges.length+1));
     return map!denest(
@@ -14317,6 +14490,7 @@ auto cartesianProduct(R1, R2, RR...)(R1 range1, R2 range2, RR otherRanges)
 
 @safe unittest
 {
+    import std.range;
     auto N = sequence!"n"(0);
     auto N3 = cartesianProduct(N, N, N);
 
@@ -14330,6 +14504,7 @@ auto cartesianProduct(R1, R2, RR...)(R1 range1, R2 range2, RR otherRanges)
 
 @safe unittest
 {
+    import std.range;
     auto N = sequence!"n"(0);
     auto N4 = cartesianProduct(N, N, N, N);
 

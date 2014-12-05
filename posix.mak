@@ -53,7 +53,11 @@ ifeq (,$(OS))
 endif
 
 ifeq (,$(MODEL))
-    uname_M:=$(shell uname -m)
+    ifeq ($(OS),solaris)
+        uname_M:=$(shell isainfo -n)
+    else
+        uname_M:=$(shell uname -m)
+    endif
     ifneq (,$(findstring $(uname_M),x86_64 amd64))
         MODEL:=64
     endif
@@ -87,8 +91,8 @@ DOCSRC = ../dlang.org
 WEBSITE_DIR = ../web
 DOC_OUTPUT_DIR = $(WEBSITE_DIR)/phobos-prerelease
 BIGDOC_OUTPUT_DIR = /tmp
-SRC_DOCUMENTABLES = index.d $(addsuffix .d,$(STD_MODULES) $(STD_NET_MODULES) $(STD_DIGEST_MODULES) $(STD_CONTAINER_MODULES) $(EXTRA_DOCUMENTABLES))
-STDDOC = $(DOCSRC)/std.ddoc $(DOCSRC)/macros.ddoc
+SRC_DOCUMENTABLES = index.d $(addsuffix .d,$(STD_MODULES) $(STD_NET_MODULES) $(STD_DIGEST_MODULES) $(STD_CONTAINER_MODULES) $(STD_RANGE_MODULES) $(EXTRA_DOCUMENTABLES))
+STDDOC = $(DOCSRC)/std_navbar-prerelease.ddoc $(DOCSRC)/std.ddoc $(DOCSRC)/macros.ddoc
 BIGSTDDOC = $(DOCSRC)/std_consolidated.ddoc $(DOCSRC)/macros.ddoc
 # Set DDOC, the documentation generator
 DDOC=$(DMD) -m$(MODEL) -w -c -o- -version=StdDdoc \
@@ -189,7 +193,7 @@ STD_NET_MODULES = $(addprefix std/net/, isemail curl)
 STD_REGEX_MODULES = $(addprefix std/regex/, package $(addprefix internal/, \
 	generator ir parser backtracking kickstart tests thompson))
 
-STD_RANGE_MODULES = $(addprefix std/range/, package constraints interfaces)
+STD_RANGE_MODULES = $(addprefix std/range/, package primitives interfaces)
 
 STD_DIGEST_MODULES = $(addprefix std/digest/, digest crc md ripemd sha)
 
@@ -217,7 +221,8 @@ EXTRA_MODULES += $(EXTRA_DOCUMENTABLES) $(addprefix			\
 	std/internal/math/, biguintcore biguintnoasm biguintx86	\
 	gammafunction errorfunction) $(addprefix std/internal/, \
 	cstring processinit unicode_tables scopebuffer\
-	unicode_comp unicode_decomp unicode_grapheme unicode_norm)
+	unicode_comp unicode_decomp unicode_grapheme unicode_norm) \
+	$(addprefix std/internal/test/, dummyrange)
 
 # Aggregate all D modules relevant to this build
 D_MODULES = $(STD_MODULES) $(EXTRA_MODULES) $(STD_NET_MODULES) \

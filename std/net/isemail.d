@@ -25,7 +25,7 @@
 module std.net.isemail;
 
 // FIXME
-import std.range.constraints; // : ElementType;
+import std.range.primitives; // : ElementType;
 import std.traits;
 
 /**
@@ -1301,7 +1301,7 @@ struct EmailStatus
     /// Returns a textual representation of the email status
     string toString ()
     {
-        import std.string;
+        import std.format : format;
         return format("EmailStatus\n{\n\tvalid: %s\n\tlocalPart: %s\n\tdomainPart: %s\n\tstatusCode: %s\n}", valid,
             localPart, domainPart, statusCode);
     }

@@ -195,7 +195,7 @@ SRC_STD_REGEX= std\regex\internal\ir.d std\regex\package.d std\regex\internal\pa
 	std\regex\internal\thompson.d std\regex\internal\kickstart.d \
 	std\regex\internal\generator.d
 
-SRC_STD_RANGE= std\range\package.d std\range\constraints.d \
+SRC_STD_RANGE= std\range\package.d std\range\primitives.d \
 	std\range\interfaces.d
 
 SRC_STD_NET= std\net\isemail.d std\net\curl.d
@@ -220,7 +220,8 @@ SRC_STD_C_FREEBSD= std\c\freebsd\socket.d
 
 SRC_STD_INTERNAL= std\internal\cstring.d std\internal\processinit.d \
 	std\internal\unicode_tables.d std\internal\unicode_comp.d std\internal\unicode_decomp.d \
-	std\internal\unicode_grapheme.d std\internal\unicode_norm.d std\internal\scopebuffer.d
+	std\internal\unicode_grapheme.d std\internal\unicode_norm.d std\internal\scopebuffer.d \
+	std\internal\test\dummyrange.d
 
 SRC_STD_INTERNAL_DIGEST= std\internal\digest\sha_SSSE3.d
 
@@ -351,7 +352,7 @@ DOCS=	$(DOC)\object.html \
 	$(DOC)\std_process.html \
 	$(DOC)\std_random.html \
 	$(DOC)\std_range_package.html \
-	$(DOC)\std_range_constraints.html \
+	$(DOC)\std_range_primitives.html \
 	$(DOC)\std_range_interfaces.html \
 	$(DOC)\std_regex.html \
 	$(DOC)\std_signals.html \
@@ -578,8 +579,8 @@ $(DOC)\std_container_package.html : $(STDDOC) std\container\package.d
 $(DOC)\std_range_package.html : $(STDDOC) std\range\package.d
 	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_range_package.html $(STDDOC) std\range\package.d
 
-$(DOC)\std_range_constraints.html : $(STDDOC) std\range\constraints.d
-	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_range_constraints.html $(STDDOC) std\range\constraints.d
+$(DOC)\std_range_primitives.html : $(STDDOC) std\range\primitives.d
+	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_range_primitives.html $(STDDOC) std\range\primitives.d
 
 $(DOC)\std_range_interfaces.html : $(STDDOC) std\range\interfaces.d
 	$(DMD) -c -o- $(DDOCFLAGS) -Df$(DOC)\std_range_interfaces.html $(STDDOC) std\range\interfaces.d

@@ -5273,7 +5273,7 @@ unittest
     foreach (X; TypeTuple!(float, double, real, int, long))
     {
         foreach (Y; TypeTuple!(float, double, real))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             X x = 21;
             Y y = 23.8;
             Y e = void;
@@ -5298,7 +5298,7 @@ unittest
                 e = copysign(X.nan, -y);
                 assert(isNaN(e) && signbit(e));
             }
-        }
+        }();
     }
 }
 

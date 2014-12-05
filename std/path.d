@@ -32,6 +32,10 @@
     returned, it is usually a slice of an input string.  If a function
     allocates, this is explicitly mentioned in the documentation.
 
+    Upgrading:
+        $(WEB digitalmars.com/d/1.0/phobos/std_path.html#fnmatch) can
+        be replaced with $(D globMatch).
+
     Authors:
         Lars Tandle Kyllingstad,
         $(WEB digitalmars.com, Walter Bright),
@@ -52,7 +56,7 @@ module std.path;
 
 // FIXME
 import std.file; //: getcwd;
-import std.range.constraints;
+import std.range.primitives;
 import std.traits;
 
 /** String used to separate directory names in a path.  Under
@@ -2895,12 +2899,14 @@ string expandTilde(string inputPath)
             }
             else
             {
+                import std.string : indexOf;
+
                 assert(path.length > 2 || (path.length == 2 && !isDirSeparator(path[1])));
                 assert(path[0] == '~');
 
                 // Extract username, searching for path separator.
                 string username;
-                auto last_char = std.string.indexOf(path, dirSeparator[0]);
+                auto last_char = indexOf(path, dirSeparator[0]);
 
                 if (last_char == -1)
                 {

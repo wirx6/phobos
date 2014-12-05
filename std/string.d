@@ -63,13 +63,14 @@ to Unicode and ASCII are found in $(LINK2 std_uni.html, std.uni) and
 $(LINK2 std_ascii.html, std.ascii), respectively. Other functions that have a
 wider generality than just strings can be found in std.algorithm and std.range.
 
-Functions 
+Functions
 $(XREF uni, icmp)
 $(XREF uni, toLower)
 $(XREF uni, toLowerInPlace)
 $(XREF uni, toUpper)
 $(XREF uni, toUpperInPlace)
-are publicly imported. 
+$(XREF format, format)
+are publicly imported.
 
 Macros: WIKI = Phobos/StdString
 MYREF = <font face='Consolas, "Bitstream Vera Sans Mono", "Andale Mono", Monaco, "DejaVu Sans Mono", "Lucida Console", monospace'><a href="#.$1">$1</a>&nbsp;</font>
@@ -97,8 +98,10 @@ void trustedPrintf(in char* str) @trusted nothrow @nogc
 }
 
 public import std.uni : icmp, toLower, toLowerInPlace, toUpper, toUpperInPlace;
+public import std.format : format, sformat;
+import std.typecons : Flag;
 
-import std.range.constraints;
+import std.range.primitives;
 import std.traits;
 import std.typetuple;
 
@@ -263,7 +266,7 @@ pure nothrow unittest
 /**
    Flag indicating whether a search is case-sensitive.
 */
-enum CaseSensitive { no, yes }
+alias CaseSensitive = Flag!"caseSensitive";
 
 /++
     Returns the index of the first occurrence of $(D c) in $(D s). If $(D c)
@@ -467,7 +470,7 @@ ptrdiff_t indexOf(Char1, Char2)(const(Char1)[] s, const(Char2)[] sub,
     foreach (S; TypeTuple!(string, wstring, dstring))
     {
         foreach (T; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             assert(indexOf(cast(S)null, to!T("a")) == -1);
             assert(indexOf(to!S("def"), to!T("a")) == -1);
             assert(indexOf(to!S("abba"), to!T("a")) == 0);
@@ -497,7 +500,7 @@ ptrdiff_t indexOf(Char1, Char2)(const(Char1)[] s, const(Char2)[] sub,
             // Thanks to Carlos Santander B. and zwang
             assert(indexOf("sus mejores cortesanos. Se embarcaron en el puerto de Dubai y",
                            to!T("page-break-before"), CaseSensitive.no) == -1);
-        }
+        }();
 
         foreach (cs; EnumMembers!CaseSensitive)
         {
@@ -542,7 +545,7 @@ ptrdiff_t indexOf(Char1, Char2)(const(Char1)[] s, const(Char2)[] sub,
     foreach(S; TypeTuple!(string, wstring, dstring))
     {
         foreach(T; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             assert(indexOf(cast(S)null, to!T("a"), 1337) == -1);
             assert(indexOf(to!S("def"), to!T("a"), 0) == -1);
             assert(indexOf(to!S("abba"), to!T("a"), 2) == 3);
@@ -579,7 +582,7 @@ ptrdiff_t indexOf(Char1, Char2)(const(Char1)[] s, const(Char2)[] sub,
 
             // In order for indexOf with and without index to be consistent
             assert(indexOf(to!S(""), to!T("")) == indexOf(to!S(""), to!T(""), 0));
-        }
+        }();
 
         foreach(cs; EnumMembers!CaseSensitive)
         {
@@ -852,7 +855,7 @@ ptrdiff_t lastIndexOf(Char1, Char2)(const(Char1)[] s, const(Char2)[] sub,
     foreach (S; TypeTuple!(string, wstring, dstring))
     {
         foreach (T; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             enum typeStr = S.stringof ~ " " ~ T.stringof;
 
             assert(lastIndexOf(cast(S)null, to!T("a")) == -1, typeStr);
@@ -887,7 +890,7 @@ ptrdiff_t lastIndexOf(Char1, Char2)(const(Char1)[] s, const(Char2)[] sub,
             assert(lastIndexOf(sPlts, to!T("FOuRTh"), CaseSensitive.no) == 10, typeStr);
             assert(lastIndexOf(sMars, to!T("whO\'s \'MY"), CaseSensitive.no) == 0, typeStr);
             assert(lastIndexOf(sMars, to!T(sMars), CaseSensitive.no) == 0, typeStr);
-        }
+        }();
 
         foreach (cs; EnumMembers!CaseSensitive)
         {
@@ -949,7 +952,7 @@ ptrdiff_t lastIndexOf(Char1, Char2)(const(Char1)[] s, const(Char2)[] sub,
     foreach(S; TypeTuple!(string, wstring, dstring))
     {
         foreach(T; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             enum typeStr = S.stringof ~ " " ~ T.stringof;
 
             assert(lastIndexOf(cast(S)null, to!T("a")) == -1, typeStr);
@@ -977,7 +980,7 @@ ptrdiff_t lastIndexOf(Char1, Char2)(const(Char1)[] s, const(Char2)[] sub,
             assert(lastIndexOf(to!S("abcdefcdef"), to!T("cd"), 4, CaseSensitive.no) == 2, typeStr);
             assert(lastIndexOf(to!S("abcdefcdef"), to!T("def"), 6, CaseSensitive.no) == 3, typeStr);
             assert(lastIndexOf(to!S(""), to!T(""), 0) == lastIndexOf(to!S(""), to!T("")), typeStr);
-        }
+        }();
 
         foreach(cs; EnumMembers!CaseSensitive)
         {
@@ -1146,7 +1149,7 @@ ptrdiff_t indexOfAny(Char,Char2)(const(Char)[] haystack, const(Char2)[] needles,
     foreach (S; TypeTuple!(string, wstring, dstring))
     {
         foreach (T; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             assert(indexOfAny(cast(S)null, to!T("a")) == -1);
             assert(indexOfAny(to!S("def"), to!T("rsa")) == -1);
             assert(indexOfAny(to!S("abba"), to!T("a")) == 0);
@@ -1169,7 +1172,7 @@ ptrdiff_t indexOfAny(Char,Char2)(const(Char)[] haystack, const(Char2)[] needles,
                 CaseSensitive.no) == 0);
 
             assert(indexOfAny("\u0100", to!T("\u0100"), CaseSensitive.no) == 0);
-        }
+        }();
     }
     }
     );
@@ -1229,7 +1232,7 @@ ptrdiff_t indexOfAny(Char,Char2)(const(Char)[] haystack, const(Char2)[] needles,
     foreach(S; TypeTuple!(string, wstring, dstring))
     {
         foreach(T; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             assert(indexOfAny(cast(S)null, to!T("a"), 1337) == -1);
             assert(indexOfAny(to!S("def"), to!T("AaF"), 0) == -1);
             assert(indexOfAny(to!S("abba"), to!T("NSa"), 2) == 3);
@@ -1254,7 +1257,7 @@ ptrdiff_t indexOfAny(Char,Char2)(const(Char)[] haystack, const(Char2)[] needles,
 
             assert(indexOfAny("\u0100", to!T("\u0100"), 0,
                 CaseSensitive.no) == 0);
-        }
+        }();
 
         foreach(cs; EnumMembers!CaseSensitive)
         {
@@ -1307,7 +1310,7 @@ ptrdiff_t lastIndexOfAny(Char,Char2)(const(Char)[] haystack,
     foreach (S; TypeTuple!(string, wstring, dstring))
     {
         foreach (T; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             assert(lastIndexOfAny(cast(S)null, to!T("a")) == -1);
             assert(lastIndexOfAny(to!S("def"), to!T("rsa")) == -1);
             assert(lastIndexOfAny(to!S("abba"), to!T("a")) == 3);
@@ -1344,7 +1347,7 @@ ptrdiff_t lastIndexOfAny(Char,Char2)(const(Char)[] haystack,
 
             assert(lastIndexOfAny("\u0100", to!T("\u0100"),
                 CaseSensitive.no) == 0);
-        }
+        }();
     }
     }
     );
@@ -1403,7 +1406,7 @@ ptrdiff_t lastIndexOfAny(Char,Char2)(const(Char)[] haystack,
     foreach (S; TypeTuple!(string, wstring, dstring))
     {
         foreach (T; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             enum typeStr = S.stringof ~ " " ~ T.stringof;
 
             assert(lastIndexOfAny(cast(S)null, to!T("a"), 1337) == -1,
@@ -1439,7 +1442,7 @@ ptrdiff_t lastIndexOfAny(Char,Char2)(const(Char)[] haystack,
                 CaseSensitive.no) == -1, typeStr);
             assert(lastIndexOfAny(to!S("ÖABCDEFCDEF"), to!T("ö"), 2,
                 CaseSensitive.no) == 0, typeStr);
-        }
+        }();
     }
     }
     );
@@ -1483,7 +1486,7 @@ ptrdiff_t indexOfNeither(Char,Char2)(const(Char)[] haystack,
     foreach (S; TypeTuple!(string, wstring, dstring))
     {
         foreach (T; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             assert(indexOfNeither(cast(S)null, to!T("a")) == -1);
             assert(indexOfNeither("abba", "a") == 1);
 
@@ -1511,7 +1514,7 @@ ptrdiff_t indexOfNeither(Char,Char2)(const(Char)[] haystack,
                     to!string(indexOfNeither(to!S("äDfEfffg"), to!T("ädFe"),
                     CaseSensitive.no)));
             }
-        }
+        }();
     }
     }
     );
@@ -1568,7 +1571,7 @@ ptrdiff_t indexOfNeither(Char,Char2)(const(Char)[] haystack,
     foreach (S; TypeTuple!(string, wstring, dstring))
     {
         foreach (T; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             assert(indexOfNeither(cast(S)null, to!T("a"), 1) == -1);
             assert(indexOfNeither(to!S("def"), to!T("a"), 1) == 1,
                 to!string(indexOfNeither(to!S("def"), to!T("a"), 1)));
@@ -1595,7 +1598,7 @@ ptrdiff_t indexOfNeither(Char,Char2)(const(Char)[] haystack,
                     CaseSensitive.no) == 2, to!string(indexOfNeither(
                     to!S("öDfEfffg"), to!T("äDi"), 2, CaseSensitive.no)));
             }
-        }
+        }();
     }
     }
     );
@@ -1638,7 +1641,7 @@ ptrdiff_t lastIndexOfNeither(Char,Char2)(const(Char)[] haystack,
     foreach (S; TypeTuple!(string, wstring, dstring))
     {
         foreach (T; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             assert(lastIndexOfNeither(cast(S)null, to!T("a")) == -1);
             assert(lastIndexOfNeither(to!S("def"), to!T("rsa")) == 2);
             assert(lastIndexOfNeither(to!S("dfefffg"), to!T("fgh")) == 2);
@@ -1667,7 +1670,7 @@ ptrdiff_t lastIndexOfNeither(Char,Char2)(const(Char)[] haystack,
             assert(lastIndexOfNeither(to!S("dfeffgfffö"), to!T("BNDabCHIJKQEPÖÖSYXÄ??ß"),
                 CaseSensitive.no) == 8, to!string(lastIndexOfNeither(to!S("dfeffgfffö"),
                 to!T("BNDabCHIJKQEPÖÖSYXÄ??ß"), CaseSensitive.no)));
-        }
+        }();
     }
     }
     );
@@ -1719,7 +1722,7 @@ ptrdiff_t lastIndexOfNeither(Char,Char2)(const(Char)[] haystack,
     foreach (S; TypeTuple!(string, wstring, dstring))
     {
         foreach (T; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             assert(lastIndexOfNeither(cast(S)null, to!T("a"), 1337) == -1);
             assert(lastIndexOfNeither(to!S("def"), to!T("f")) == 1);
             assert(lastIndexOfNeither(to!S("dfefffg"), to!T("fgh")) == 2);
@@ -1747,7 +1750,7 @@ ptrdiff_t lastIndexOfNeither(Char,Char2)(const(Char)[] haystack,
             assert(lastIndexOfNeither(to!S("dfefffg"), to!T("NSA"), 2,
                 CaseSensitive.no) == 1, to!string(lastIndexOfNeither(
                     to!S("dfefffg"), to!T("NSA"), 2, CaseSensitive.no)));
-        }
+        }();
     }
     }
     );
@@ -1892,7 +1895,7 @@ S capitalize(S)(S s) @trusted pure
     If $(D keepTerm) is set to $(D KeepTerminator.yes), then the delimiter
     is included in the strings returned.
   +/
-enum KeepTerminator : bool { no, yes }
+alias KeepTerminator = Flag!"keepTerminator";
 /// ditto
 S[] splitLines(S)(S s, in KeepTerminator keepTerm = KeepTerminator.no) @safe pure
     if (isSomeString!S)
@@ -2271,7 +2274,7 @@ unittest
         assert(chomp(to!S("hello\u2029\u2029")) == "hello\u2029");
 
         foreach (T; TypeTuple!(char[], wchar[], dchar[], string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             // @@@ BUG IN COMPILER, MUST INSERT CAST
             assert(chomp(cast(S)null, cast(T)null) is null);
             assert(chomp(to!S("hello\n"), cast(T)null) == "hello");
@@ -2282,7 +2285,7 @@ unittest
             assert(chomp(to!S("hello"), to!T("llo")) == "he");
             assert(chomp(to!S("\uFF28ello"), to!T("llo")) == "\uFF28e");
             assert(chomp(to!S("\uFF28el\uFF4co"), to!T("l\uFF4co")) == "\uFF28e");
-        }
+        }();
     }
     });
 }
@@ -2306,7 +2309,7 @@ C1[] chompPrefix(C1, C2)(C1[] str, C2[] delimiter) @safe pure
     else
     {
         import std.utf : decode;
-    
+
         auto orig = str;
         size_t index = 0;
 
@@ -2339,13 +2342,13 @@ C1[] chompPrefix(C1, C2)(C1[] str, C2[] delimiter) @safe pure
     foreach (S; TypeTuple!(char[], wchar[], dchar[], string, wstring, dstring))
     {
         foreach (T; TypeTuple!(char[], wchar[], dchar[], string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             assert(equal(chompPrefix(to!S("abcdefgh"), to!T("abcde")), "fgh"));
             assert(equal(chompPrefix(to!S("abcde"), to!T("abcdefgh")), "abcde"));
             assert(equal(chompPrefix(to!S("\uFF28el\uFF4co"), to!T("\uFF28el\uFF4co")), ""));
             assert(equal(chompPrefix(to!S("\uFF28el\uFF4co"), to!T("\uFF28el")), "\uFF4co"));
             assert(equal(chompPrefix(to!S("\uFF28el"), to!T("\uFF28el\uFF4co")), "\uFF28el"));
-        }
+        }();
     }
     });
 }
@@ -2877,7 +2880,7 @@ C1[] translate(C1, C2 = immutable char)(C1[] str,
         foreach (T; TypeTuple!( char[], const( char)[], immutable( char)[],
                                wchar[], const(wchar)[], immutable(wchar)[],
                                dchar[], const(dchar)[], immutable(dchar)[]))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             foreach(R; TypeTuple!(dchar[dchar], const dchar[dchar],
                         immutable dchar[dchar]))
             {
@@ -2889,7 +2892,7 @@ C1[] translate(C1, C2 = immutable char)(C1[] str,
                 assert(translate(to!S("hello world"), tt, to!T("q5"))
                     == to!S("qe55o wor5d"));
             }
-        }
+        }();
 
         auto s = to!S("hello world");
         dchar[dchar] transTable = ['h' : 'q', 'l' : '5'];
@@ -2938,7 +2941,7 @@ C1[] translate(C1, S, C2 = immutable char)(C1[] str,
         foreach (T; TypeTuple!( char[], const( char)[], immutable( char)[],
                                wchar[], const(wchar)[], immutable(wchar)[],
                                dchar[], const(dchar)[], immutable(dchar)[]))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
 
             foreach(R; TypeTuple!(string[dchar], const string[dchar],
                         immutable string[dchar]))
@@ -2955,7 +2958,7 @@ C1[] translate(C1, S, C2 = immutable char)(C1[] str,
                 assert(translate(to!S("hello world"), tt, to!T("42")) ==
                        to!S("yellowe4242o wor42d"));
             }
-        }
+        }();
 
         auto s = to!S("hello world");
         string[dchar] transTable = ['h' : "silly", 'l' : "putty"];
@@ -3176,7 +3179,7 @@ body
                to!S("hello \U00010143 world"));
 
         foreach (T; TypeTuple!(char[], const(char)[], immutable(char)[]))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             assert(translate(to!S("hello world"), makeTrans("hl", "q5"), to!T("r")) ==
                    to!S("qe55o wo5d"));
             assert(translate(to!S("hello \U00010143 world"), makeTrans("hl", "q5"), to!T("r")) ==
@@ -3185,7 +3188,7 @@ body
                    to!S(" wrd"));
             assert(translate(to!S("hello world"), makeTrans("hl", "q5"), to!T("q5")) ==
                    to!S("qe55o wor5d"));
-        }
+        }();
     }
     });
 }
@@ -3253,178 +3256,6 @@ private void translateImplAscii(C = immutable char, Buffer)(in char[] str,
         }
     }
 }
-
-/*****************************************************
- * Format arguments into a string.
- *
- * Params: fmt  = Format string. For detailed specification, see $(XREF format,formattedWrite).
- *         args = Variadic list of arguments to format into returned string.
- *
- *  $(RED format's current implementation has been replaced with $(LREF xformat)'s
- *        implementation. in November 2012.
- *        This is seamless for most code, but it makes it so that the only
- *        argument that can be a format string is the first one, so any
- *        code which used multiple format strings has broken. Please change
- *        your calls to format accordingly.
- *
- *        e.g.:
- *        ----
- *        format("key = %s", key, ", value = %s", value)
- *        ----
- *        needs to be rewritten as:
- *        ----
- *        format("key = %s, value = %s", key, value)
- *        ----
- *   )
- */
-string format(Char, Args...)(in Char[] fmt, Args args)
-{
-    import std.format : formattedWrite, FormatException;
-    import std.array : appender;
-    auto w = appender!string();
-    auto n = formattedWrite(w, fmt, args);
-    version (all)
-    {
-        // In the future, this check will be removed to increase consistency
-        // with formattedWrite
-        import std.conv : text;
-        import std.exception : enforce;
-        enforce(n == args.length, new FormatException(
-            text("Orphan format arguments: args[", n, "..", args.length, "]")));
-    }
-    return w.data;
-}
-
-unittest
-{
-    import std.format;
-    import core.exception;
-
-    debug(string) trustedPrintf("std.string.format.unittest\n");
-
-    import std.exception;
-    assertCTFEable!(
-    {
-//  assert(format(null) == "");
-    assert(format("foo") == "foo");
-    assert(format("foo%%") == "foo%");
-    assert(format("foo%s", 'C') == "fooC");
-    assert(format("%s foo", "bar") == "bar foo");
-    assert(format("%s foo %s", "bar", "abc") == "bar foo abc");
-    assert(format("foo %d", -123) == "foo -123");
-    assert(format("foo %d", 123) == "foo 123");
-
-    assertThrown!FormatException(format("foo %s"));
-    assertThrown!FormatException(format("foo %s", 123, 456));
-
-    assert(format("hel%slo%s%s%s", "world", -138, 'c', true) ==
-                  "helworldlo-138ctrue");
-    });
-}
-
-
-/*****************************************************
- * Format arguments into buffer <i>buf</i> which must be large
- * enough to hold the result. Throws RangeError if it is not.
- * Returns: The slice of $(D buf) containing the formatted string.
- *
- *  $(RED sformat's current implementation has been replaced with $(LREF xsformat)'s
- *        implementation. in November 2012.
- *        This is seamless for most code, but it makes it so that the only
- *        argument that can be a format string is the first one, so any
- *        code which used multiple format strings has broken. Please change
- *        your calls to sformat accordingly.
- *
- *        e.g.:
- *        ----
- *        sformat(buf, "key = %s", key, ", value = %s", value)
- *        ----
- *        needs to be rewritten as:
- *        ----
- *        sformat(buf, "key = %s, value = %s", key, value)
- *        ----
- *   )
- */
-char[] sformat(Char, Args...)(char[] buf, in Char[] fmt, Args args)
-{
-    import core.exception : onRangeError;
-    import std.utf : encode;
-    import std.format : formattedWrite, FormatException;
-
-    size_t i;
-
-    struct Sink
-    {
-        void put(dchar c)
-        {
-            char[4] enc;
-            auto n = encode(enc, c);
-
-            if (buf.length < i + n)
-                onRangeError("std.string.sformat", 0);
-
-            buf[i .. i + n] = enc[0 .. n];
-            i += n;
-        }
-        void put(const(char)[] s)
-        {
-            if (buf.length < i + s.length)
-                onRangeError("std.string.sformat", 0);
-
-            buf[i .. i + s.length] = s[];
-            i += s.length;
-        }
-        void put(const(wchar)[] s)
-        {
-            for (; !s.empty; s.popFront())
-                put(s.front);
-        }
-        void put(const(dchar)[] s)
-        {
-            for (; !s.empty; s.popFront())
-                put(s.front);
-        }
-    }
-    auto n = formattedWrite(Sink(), fmt, args);
-    version (all)
-    {
-        // In the future, this check will be removed to increase consistency
-        // with formattedWrite
-        import std.conv : text;
-        import std.exception : enforce;
-        enforce(n == args.length, new FormatException(
-            text("Orphan format arguments: args[", n, "..", args.length, "]")));
-    }
-    return buf[0 .. i];
-}
-
-unittest
-{
-    import core.exception;
-    import std.format;
-
-    debug(string) trustedPrintf("std.string.sformat.unittest\n");
-
-    import std.exception;
-    assertCTFEable!(
-    {
-    char[10] buf;
-
-    assert(sformat(buf[], "foo") == "foo");
-    assert(sformat(buf[], "foo%%") == "foo%");
-    assert(sformat(buf[], "foo%s", 'C') == "fooC");
-    assert(sformat(buf[], "%s foo", "bar") == "bar foo");
-    assertThrown!RangeError(sformat(buf[], "%s foo %s", "bar", "abc"));
-    assert(sformat(buf[], "foo %d", -123) == "foo -123");
-    assert(sformat(buf[], "foo %d", 123) == "foo 123");
-
-    assertThrown!FormatException(sformat(buf[], "foo %s"));
-    assertThrown!FormatException(sformat(buf[], "foo %s", 123, 456));
-
-    assert(sformat(buf[], "%s %s %s", "c"c, "w"w, "d"d) == "c w d");
-    });
-}
-
 
 /***********************************************
  * See if character c is in the pattern.
@@ -3615,7 +3446,7 @@ S removechars(S)(S s, in S pattern) @safe pure if (isSomeString!S)
 S squeeze(S)(S s, in S pattern = null)
 {
     import std.utf : encode;
- 
+
     Unqual!(typeof(s[0]))[] r;
     dchar lastc;
     size_t lasti;

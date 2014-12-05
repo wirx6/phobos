@@ -323,6 +323,22 @@ private:
 
 
     MessageBox  mbox;
+
+public:
+
+    /**
+     * Generate a convenient string for identifying this Tid.  This is only
+     * useful to see if Tid's that are currently executing are the same or
+     * different, e.g. for logging and debugging.  It is potentially possible
+     * that a Tid executed in the future will have the same toString() output
+     * as another Tid that has already terminated.
+     */
+    void toString(scope void delegate(const(char)[]) sink)
+    {
+        import std.format;
+        formattedWrite(sink, "Tid(%x)", &mbox);
+    }
+
 }
 
 
@@ -1056,7 +1072,7 @@ struct ThreadInfo
      * default instance when info is requested for a thread not created by the
      * Scheduler.
      */
-    static @property ref thisInfo()
+    static @property ref thisInfo() nothrow
     {
         static ThreadInfo val;
         return val;
@@ -1157,7 +1173,7 @@ interface Scheduler
      * as when each logical thread is backed by a dedicated kernel thread,
      * this routine may be a no-op.
      */
-    void yield();
+    void yield() nothrow;
 
     /**
      * Returns an appropriate ThreadInfo instance.
@@ -1166,7 +1182,7 @@ interface Scheduler
      * is calling this routine or, if the calling thread was not create by
      * this scheduler, returns ThreadInfo.thisInfo instead.
      */
-    @property ref ThreadInfo thisInfo();
+    @property ref ThreadInfo thisInfo() nothrow;
 
     /**
      * Creates a Condition varialbe analog for signaling.
@@ -1183,7 +1199,7 @@ interface Scheduler
      *      cases a Scheduler may need to hold this reference and unlock the
      *      mutex before yielding execution to another logical thread.
      */
-    Condition newCondition( Mutex m );
+    Condition newCondition( Mutex m ) /*nothrow*/;
 }
 
 
@@ -1221,7 +1237,7 @@ class ThreadScheduler :
     /**
      * This scheduler does no explicit multiplexing, so this is a no-op.
      */
-    void yield()
+    void yield() nothrow
     {
         // no explicit yield needed
     }
@@ -1231,7 +1247,7 @@ class ThreadScheduler :
      * Returns ThreadInfo.thisInfo, since it is a thread-local instance of
      * ThreadInfo, which is the correct behavior for this scheduler.
      */
-    @property ref ThreadInfo thisInfo()
+    @property ref ThreadInfo thisInfo() nothrow
     {
         return ThreadInfo.thisInfo;
     }
@@ -1240,7 +1256,7 @@ class ThreadScheduler :
     /**
      * Creates a new Condition variable.  No custom behavior is needed here.
      */
-    Condition newCondition( Mutex m )
+    Condition newCondition( Mutex m ) /*nothrow*/
     {
         return new Condition( m );
     }
@@ -1271,7 +1287,7 @@ class FiberScheduler :
      * This created a new Fiber for the supplied op and adds it to the
      * dispatch list.
      */
-    void spawn( void delegate() op )
+    void spawn( void delegate() op ) nothrow
     {
         create( op );
         yield();
@@ -1282,7 +1298,7 @@ class FiberScheduler :
      * If the caller is a scheduled Fiber, this yields execution to another
      * scheduled Fiber.
      */
-    void yield()
+    void yield() nothrow
     {
         // NOTE: It's possible that we should test whether the calling Fiber
         //       is an InfoFiber before yielding, but I think it's reasonable
@@ -1299,7 +1315,7 @@ class FiberScheduler :
      * Fiber was created by this dispatcher, otherwise it returns
      * ThreadInfo.thisInfo.
      */
-    @property ref ThreadInfo thisInfo()
+    @property ref ThreadInfo thisInfo() nothrow
     {
         auto f = cast(InfoFiber) Fiber.getThis();
 
@@ -1312,7 +1328,7 @@ class FiberScheduler :
     /**
      * Returns a Condition analog that yields when wait or notify is called.
      */
-    Condition newCondition( Mutex m )
+    Condition newCondition( Mutex m ) /*nothrow*/
     {
         return new FiberCondition( m );
     }
@@ -1324,7 +1340,7 @@ private:
     {
         ThreadInfo info;
 
-        this( void delegate() op )
+        this( void delegate() op ) nothrow
         {
             super( op );
         }
@@ -1340,39 +1356,41 @@ private:
             notified = false;
         }
 
-        override void wait()
+        override void wait() nothrow
         {
             switchContext();
         }
 
-        override bool wait( Duration period )
+        override bool wait( Duration period ) nothrow
         {
             scope(exit) notified = false;
 
-            for( auto limit = Clock.currSystemTick() + period;
+            for( auto limit = Clock.currSystemTick + period;
                  !notified && !period.isNegative;
-                 period = limit - Clock.currSystemTick() )
+                 period = limit - Clock.currSystemTick )
             {
                 yield();
             }
             return notified;
         }
 
-        override void notify()
+        override void notify() nothrow
         {
             notified = true;
             switchContext();
         }
 
-        override void notifyAll()
+        override void notifyAll() nothrow
         {
             notified = true;
             switchContext();
         }
 
     private:
-        final void switchContext()
+        final void switchContext() nothrow
         {
+            // nothrow hack needed until lock/unlock are nothrow
+            scope (failure) assert(0);
             mutex.unlock();
             scope(exit) mutex.lock();
             yield();
@@ -1389,10 +1407,10 @@ private:
 
         while( m_fibers.length > 0 )
         {
-            auto t = m_fibers[m_pos].call( false );
+            auto t = m_fibers[m_pos].call( Fiber.Rethrow.no );
             if (t !is null && !(cast(OwnerTerminated) t))
                 throw t;
-            if( m_fibers[m_pos].state() == Fiber.State.TERM )
+            if( m_fibers[m_pos].state == Fiber.State.TERM )
             {
                 if( m_pos >= (m_fibers = remove( m_fibers, m_pos )).length )
                     m_pos = 0;
@@ -1405,7 +1423,7 @@ private:
     }
 
 
-    final void create( void delegate() op )
+    final void create( void delegate() op ) nothrow
     {
         void wrap()
         {
@@ -1444,7 +1462,7 @@ __gshared Scheduler scheduler;
  * If the caller is a Fiber and is not a Generator, this function will call
  * scheduler.yield() or Fiber.yield(), as appropriate.
  */
-void yield()
+void yield() nothrow
 {
     auto fiber = Fiber.getThis();
     if (!(cast(IsGenerator) fiber))
@@ -1578,7 +1596,7 @@ class Generator(T) :
      */
     final bool empty() @property
     {
-        return m_value is null || state() == State.TERM;
+        return m_value is null || state == State.TERM;
     }
 
 
@@ -1615,7 +1633,7 @@ private:
 void yield(T)(ref T value)
 {
     Generator!T cur = cast(Generator!T) Fiber.getThis();
-    if (cur !is null && cur.state() == Fiber.State.EXEC)
+    if (cur !is null && cur.state == Fiber.State.EXEC)
     {
         cur.m_value = &value;
         return Fiber.yield();
@@ -1968,7 +1986,7 @@ private
 
             static if( timedWait )
             {
-                auto limit = Clock.currSystemTick() + period;
+                auto limit = Clock.currSystemTick + period;
             }
 
             while( true )
@@ -2016,7 +2034,7 @@ private
                     {
                         static if( timedWait )
                         {
-                            period = limit - Clock.currSystemTick();
+                            period = limit - Clock.currSystemTick;
                         }
                         continue;
                     }
@@ -2146,6 +2164,7 @@ private
         size_t      m_localMsgs;
         size_t      m_maxMsgs;
         bool        m_closed;
+
     }
 
 

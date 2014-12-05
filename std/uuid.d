@@ -99,7 +99,7 @@ $(MYREF oidNamespace) $(MYREF x500Namespace) )
  */
 module std.uuid;
 
-import std.range.constraints;
+import std.range.primitives;
 import std.traits;
 
 /**
@@ -1565,7 +1565,7 @@ public class UUIDParsingException : Exception
         Throwable next = null, string file = __FILE__, size_t line = __LINE__) pure @trusted
     {
         import std.array : replace;
-        import std.string : format;
+        import std.format : format;
         this.input = input;
         this.position = pos;
         this.reason = why;

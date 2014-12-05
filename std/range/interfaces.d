@@ -65,7 +65,7 @@ to $(WEB fantascienza.net/leonardo/so/, Leonardo Maffi).
 */
 module std.range.interfaces;
 
-import std.range.constraints;
+import std.range.primitives;
 import std.traits;
 import std.typetuple;
 
@@ -453,13 +453,10 @@ template outputRangeObject(E...) {
     }
 }
 
-version(unittest)
-{
-    import std.typecons;
-    mixin(dummyRanges);    
-}
 
-unittest {
+unittest 
+{
+    import std.internal.test.dummyrange;
 	import std.algorithm : equal;
 	import std.array;
 

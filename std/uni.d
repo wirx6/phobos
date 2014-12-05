@@ -652,7 +652,7 @@ module std.uni;
 
 import core.stdc.stdlib;
 import std.traits, std.typetuple;
-import std.range.constraints;
+import std.range.primitives;
 
 
 // debug = std_uni;
@@ -1503,8 +1503,6 @@ private auto packedArrayView(T)(inout(size_t)* ptr, size_t items) @trusted pure 
 // Partially unrolled binary search using Shar's method
 //============================================================================
 
-private import std.math : pow;
-
 string genUnrolledSwitchSearch(size_t size)
 {
     import std.conv : to;
@@ -2352,7 +2350,7 @@ public:
     unittest
     {
         import std.conv : to;
-        import std.string : format;
+        import std.format : format;
         import std.uni : unicode;
 
         assert(unicode.Cyrillic.to!string ==
@@ -2371,7 +2369,7 @@ public:
     unittest
     {
         import std.exception : assertThrown;
-        import std.string : format;
+        import std.format : format;
         assertThrown!FormatException(format("%a", unicode.ASCII));
     }
 
@@ -2540,7 +2538,7 @@ public:
     string toSourceCode(string funcName="")
     {
         import std.array : array;
-        import std.string : format;
+        import std.format : format;
         import std.algorithm : countUntil;
         enum maxBinary = 3;
         static string linearScope(R)(R ivals, string indent)
@@ -3485,6 +3483,7 @@ version(unittest)
 @system unittest //@@@BUG@@@ iota is @system
 {
     import std.conv, std.range, std.algorithm;
+    import std.typecons;
     //ensure constructor handles bad ordering and overlap
     auto c1 = CodepointSet('а', 'я'+1, 'А','Я'+1);
     foreach(ch; chain(iota('а', 'я'+1), iota('А','Я'+1)))
@@ -4741,7 +4740,7 @@ template Utf8Matcher()
     // from 3 primitives: tab!(size), lookup and Sizes
     mixin template DefMatcher()
     {
-        import std.string : format;
+        import std.format : format;
         enum hasASCII = staticIndexOf!(1, Sizes) >= 0;
         alias UniSizes = Erase!(1, Sizes);
 
@@ -5377,7 +5376,7 @@ package auto units(C)(C[] s)
 unittest
 {
     import std.exception : collectException;
-    import std.string : format;
+    import std.format : format;
     import std.algorithm;
     auto utf16 = utfMatcher!wchar(unicode.L);
     auto utf8 = utfMatcher!char(unicode.L);
@@ -7212,7 +7211,7 @@ unittest
     {
         foreach(S1; TypeTuple!(string, wstring, dstring))
         foreach(S2; TypeTuple!(string, wstring, dstring))
-        {
+        (){ // avoid slow optimizations for large functions @@@BUG@@@ 2396
             assert(cfunc("".to!S1(), "".to!S2()) == 0);
             assert(cfunc("A".to!S1(), "".to!S2()) > 0);
             assert(cfunc("".to!S1(), "0".to!S2()) < 0);
@@ -7224,7 +7223,7 @@ unittest
             // Check example:
             assert(cfunc("Август".to!S1(), "авгусТ".to!S2()) == 0);
             assert(cfunc("ΌΎ".to!S1(), "όύ".to!S2()) == 0);
-        }
+        }();
         // check that the order is properly agnostic to the case
         auto strs = [ "Apple", "ORANGE",  "orAcle", "amp", "banana"];
         sort!((a,b) => cfunc(a,b) < 0)(strs);
@@ -8497,7 +8496,7 @@ S toLower(S)(S s) @trusted pure
 
 @trusted unittest //@@@BUG std.format is not @safe
 {
-    import std.string : format;
+    import std.format : format;
     foreach(ch; 0..0x80)
         assert(std.ascii.toLower(ch) == toLower(ch));
     assert(toLower('Я') == 'я');
@@ -8604,7 +8603,7 @@ dchar toUpper(dchar c)
 
 @trusted unittest
 {
-    import std.string : format;
+    import std.format : format;
     foreach(ch; 0..0x80)
         assert(std.ascii.toUpper(ch) == toUpper(ch));
     assert(toUpper('я') == 'Я');
@@ -8672,7 +8671,7 @@ unittest
 {
     static void doTest(C)(const(C)[] s, const(C)[] trueUp, const(C)[] trueLow)
     {
-        import std.string : format;
+        import std.format : format;
         string diff = "src: %( %x %)\nres: %( %x %)\ntru: %( %x %)";
         auto low = s.toLower() , up = s.toUpper();
         auto lowInp = s.dup, upInp = s.dup;
@@ -8835,7 +8834,7 @@ bool isSymbol(dchar c)
 
 unittest
 {
-    import std.string;
+    import std.format : format;
     assert(isSymbol('\u0024'));
     assert(isSymbol('\u002B'));
     assert(isSymbol('\u005E'));
@@ -8882,7 +8881,7 @@ bool isGraphical(dchar c)
 unittest
 {
     auto set = unicode("Graphical");
-    import std.string;
+    import std.format : format;
     foreach(ch; set.byCodepoint)
         assert(isGraphical(ch), format("%4x", ch));
     foreach(ch; 0..0x4000)
