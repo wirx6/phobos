@@ -14,8 +14,21 @@ motivation behind them, see Andrei Alexandrescu's article
 $(LINK2 http://www.informit.com/articles/printerfriendly.aspx?p=1407357&rll=1,
 $(I On Iteration)).
 
-A rich set of _range creation and composition templates are provided that let
-you construct new ranges out of existing ranges:
+Submodules:
+
+This module has a few submodules:
+
+The $(LINK2 std_range_primitives.html, $(D std._range.primitives)) submodule
+provides basic _range functionality. It defines several templates for testing
+whether a given object is a _range, what kind of _range it is, and provides
+some common _range operations.
+
+The $(LINK2 std_range_interfaces.html, $(D std._range.interfaces)) submodule
+provides object-based interfaces for working with ranges via runtime
+polymorphism.
+
+The remainder of this module provides a rich set of _range creation and
+composition templates that let you construct new ranges out of existing ranges:
 
 $(BOOKTABLE ,
     $(TR $(TD $(D $(LREF retro)))
@@ -136,7 +149,7 @@ std_algorithm.html#sort, $(D std.algorithm.sort)) function also conveniently
 returns a $(D SortedRange). $(D SortedRange) objects provide some additional
 _range operations that take advantage of the fact that the _range is sorted.
 
-Source: $(PHOBOSSRC std/range/_package.d)
+Source: $(PHOBOSSRC std/_range/_package.d)
 
 Macros:
 
@@ -5025,8 +5038,10 @@ struct Transposed(RangeOfRanges)
 
     @property auto front()
     {
-        import std.algorithm : map;
-        return map!"a.front"(_input.save);
+        import std.algorithm : filter, map;
+        return _input.save
+                     .filter!(a => !a.empty)
+                     .map!(a => a.front);
     }
 
     void popFront()
@@ -5036,8 +5051,11 @@ struct Transposed(RangeOfRanges)
         while (!r.empty)
         {
             auto e = r.front;
-            e.popFront();
-            r.front = e;
+            if (!e.empty)
+            {
+                e.popFront();
+                r.front = e;
+            }
 
             r.popFront();
         }
@@ -5074,6 +5092,18 @@ private:
     // Boundary case: transpose of empty range should be empty
     int[][] ror = [];
     assert(transposed(ror).empty);
+}
+
+// Issue 9507
+unittest
+{
+    import std.algorithm : equal;
+
+    auto r = [[1,2], [3], [4,5], [], [6]];
+    assert(r.transposed.equal!equal([
+        [1, 3, 4, 6],
+        [2, 5]
+    ]));
 }
 
 /**
