@@ -231,7 +231,7 @@ private uint _ctfeSkipOp(ref string op)
     while (op.length)
     {
         immutable front = op[0];
-        if(front.isASCII && !(front.isAlphaNum || front == '_' || front == '.'))
+        if(front.isASCII() && !(front.isAlphaNum() || front == '_' || front == '.'))
             op = op[1..$];
         else
             break;
@@ -248,7 +248,7 @@ private uint _ctfeSkipInteger(ref string op)
     while (op.length)
     {
         immutable front = op[0];
-        if(front.isDigit)
+        if(front.isDigit())
             op = op[1..$];
         else
             break;
@@ -273,18 +273,18 @@ private uint _ctfeMatchUnary(string fun, string name)
 {
     if (!__ctfe) assert(false);
     import std.stdio;
-    fun._ctfeSkipOp;
+    fun._ctfeSkipOp();
     for (;;) 
     {
-        immutable h = fun._ctfeSkipName(name) + fun._ctfeSkipInteger;
+        immutable h = fun._ctfeSkipName(name) + fun._ctfeSkipInteger();
         if (h == 0)
         {
-            fun._ctfeSkipOp;
+            fun._ctfeSkipOp();
             break;
         }
         else if (h == 1)
         {
-            if(!fun._ctfeSkipOp)
+            if(!fun._ctfeSkipOp())
                 break;
         }
         else
@@ -320,18 +320,18 @@ unittest
 private uint _ctfeMatchBinary(string fun, string name1, string name2)
 {
     if (!__ctfe) assert(false);
-    fun._ctfeSkipOp;
+    fun._ctfeSkipOp();
     for (;;) 
     {
-        immutable h = fun._ctfeSkipName(name1) + fun._ctfeSkipName(name2) + fun._ctfeSkipInteger;
+        immutable h = fun._ctfeSkipName(name1) + fun._ctfeSkipName(name2) + fun._ctfeSkipInteger();
         if (h == 0)
         {
-            fun._ctfeSkipOp;
+            fun._ctfeSkipOp();
             break;
         }
         else if (h == 1)
         {
-            if(!fun._ctfeSkipOp)
+            if(!fun._ctfeSkipOp())
                 break;
         }
         else
@@ -1013,7 +1013,7 @@ template memoize(alias fun, uint maxSize)
             initialized = (cast(size_t*)GC.calloc(nwords * size_t.sizeof, attr | GC.BlkAttr.NO_SCAN))[0 .. nwords];
         }
 
-        import core.bitop : bts;
+        import core.bitop : bt, bts;
         import std.conv : emplace;
 
         size_t hash;
@@ -1021,14 +1021,21 @@ template memoize(alias fun, uint maxSize)
             hash = hashOf(arg, hash);
         // cuckoo hashing
         immutable idx1 = hash % maxSize;
-        if (!bts(initialized.ptr, idx1))
-            return emplace(&memo[idx1], args, fun(args)).res;
+        if (!bt(initialized.ptr, idx1))
+        {
+            emplace(&memo[idx1], args, fun(args));
+            bts(initialized.ptr, idx1); // only set to initialized after setting args and value (bugzilla 14025)
+            return memo[idx1].res;
+        }
         else if (memo[idx1].args == args)
             return memo[idx1].res;
         // FNV prime
         immutable idx2 = (hash * 16777619) % maxSize;
-        if (!bts(initialized.ptr, idx2))
+        if (!bt(initialized.ptr, idx2))
+        {
             emplace(&memo[idx2], memo[idx1]);
+            bts(initialized.ptr, idx2); // only set to initialized after setting args and value (bugzilla 14025)
+        }
         else if (memo[idx2].args == args)
             return memo[idx2].res;
         else if (idx1 != idx2)

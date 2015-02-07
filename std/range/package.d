@@ -383,7 +383,7 @@ if (isBidirectionalRange!(Unqual!Range))
 
 @safe unittest
 {
-    import std.algorithm : equal;    
+    import std.algorithm : equal;
     auto LL = iota(1L, 4L);
     auto r = retro(LL);
     assert(equal(r, [3L, 2L, 1L]));
@@ -407,13 +407,6 @@ the same range results in a stride with a step that is the
 product of the two applications.
 
 Throws: $(D Exception) if $(D n == 0).
-
-Example:
-----
-int[] a = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 ];
-assert(equal(stride(a, 3), [ 1, 4, 7, 10 ][]));
-assert(stride(stride(a, 2), 3) == stride(a, 6));
-----
  */
 auto stride(Range)(Range r, size_t n)
 if (isInputRange!(Unqual!Range))
@@ -623,10 +616,20 @@ if (isInputRange!(Unqual!Range))
     }
 }
 
+///
+unittest
+{
+    import std.algorithm : equal;
+
+    int[] a = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 ];
+    assert(equal(stride(a, 3), [ 1, 4, 7, 10 ][]));
+    assert(stride(stride(a, 2), 3) == stride(a, 6));
+}
+
 @safe unittest
 {
     import std.internal.test.dummyrange;
-    import std.algorithm : equal;    
+    import std.algorithm : equal;
 
     static assert(isRandomAccessRange!(typeof(stride([1, 2, 3], 2))));
     void test(size_t n, int[] input, int[] witness)
@@ -770,17 +773,6 @@ length), $(D Chain) offers them as well.
 If only one range is offered to $(D Chain) or $(D chain), the $(D
 Chain) type exits the picture by aliasing itself directly to that
 range's type.
-
-Example:
-----
-int[] arr1 = [ 1, 2, 3, 4 ];
-int[] arr2 = [ 5, 6 ];
-int[] arr3 = [ 7 ];
-auto s = chain(arr1, arr2, arr3);
-assert(s.length == 7);
-assert(s[5] == 6);
-assert(equal(s, [1, 2, 3, 4, 5, 6, 7][]));
-----
  */
 auto chain(Ranges...)(Ranges rs)
 if (Ranges.length > 0 &&
@@ -1100,6 +1092,20 @@ if (Ranges.length > 0 &&
     }
 }
 
+///
+unittest
+{
+    import std.algorithm : equal;
+
+    int[] arr1 = [ 1, 2, 3, 4 ];
+    int[] arr2 = [ 5, 6 ];
+    int[] arr3 = [ 7 ];
+    auto s = chain(arr1, arr2, arr3);
+    assert(s.length == 7);
+    assert(s[5] == 6);
+    assert(equal(s, [1, 2, 3, 4, 5, 6, 7][]));
+}
+
 @safe unittest
 {
     import std.internal.test.dummyrange;
@@ -1232,53 +1238,49 @@ if (Rs.length > 1 && allSatisfy!(isInputRange, staticMap!(Unqual, Rs)))
 
         @property auto ref front()
         {
-            static string makeSwitch()
+            final switch (_current)
             {
-                string result = "switch (_current) {\n";
                 foreach (i, R; Rs)
                 {
-                    auto si = to!string(i);
-                    result ~= "case "~si~": "~
-                        "assert(!source["~si~"].empty); return source["~si~"].front;\n";
+                    case i:
+                        assert(!source[i].empty);
+                        return source[i].front;
                 }
-                return result ~ "default: assert(0); }";
             }
-
-            mixin(makeSwitch());
+            assert(0);
         }
 
         void popFront()
         {
-            static string makeSwitchPopFront()
+            final switch (_current)
             {
-                string result = "switch (_current) {\n";
                 foreach (i, R; Rs)
                 {
-                    auto si = to!string(i);
-                    result ~= "case "~si~": source["~si~"].popFront(); break;\n";
+                    case i:
+                        source[i].popFront();
+                        break;
                 }
-                return result ~ "default: assert(0); }";
             }
 
-            static string makeSwitchIncrementCounter()
+            auto next = _current == (Rs.length - 1) ? 0 : (_current + 1);
+            final switch (next)
             {
-                string result =
-                    "auto next = _current == Rs.length - 1 ? 0 : _current + 1;\n"~
-                    "switch (next) {\n";
                 foreach (i, R; Rs)
                 {
-                    auto si = to!string(i);
-                    auto si_1 = to!string(i ? i - 1 : Rs.length - 1);
-                    result ~= "case "~si~": "~
-                        "if (!source["~si~"].empty) { _current = "~si~"; return; }\n"~
-                        "if ("~si~" == _current) { _current = _current.max; return; }\n"~
-                        "goto case "~to!string((i + 1) % Rs.length)~";\n";
+                    case i:
+                        if (!source[i].empty)
+                        {
+                            _current = i;
+                            return;
+                        }
+                        if (i == _current)
+                        {
+                            _current = _current.max;
+                            return;
+                        }
+                        goto case (i + 1) % Rs.length;
                 }
-                return result ~ "default: assert(0); }";
             }
-
-            mixin(makeSwitchPopFront());
-            mixin(makeSwitchIncrementCounter());
         }
 
         static if (allSatisfy!(isForwardRange, staticMap!(Unqual, Rs)))
@@ -1949,7 +1951,10 @@ auto takeOne(R)(R source) if (isInputRange!R)
             @property auto ref front() { assert(!empty); return _source.front; }
             void popFront() { assert(!empty); _empty = true; }
             void popBack() { assert(!empty); _empty = true; }
-            @property auto save() { return Result(_source.save, empty); }
+            static if (isForwardRange!(Unqual!R))
+            {
+                @property auto save() { return Result(_source.save, empty); }
+            }
             @property auto ref back() { assert(!empty); return _source.front; }
             @property size_t length() const { return !empty; }
             alias opDollar = length;
@@ -1982,6 +1987,21 @@ auto takeOne(R)(R source) if (isInputRange!R)
     s.popFront();
     assert(s.length == 0);
     assert(s.empty);
+}
+
+unittest
+{
+    struct NonForwardRange
+    {
+        enum empty = false;
+        int front() { return 42; }
+        void popFront() {}
+    }
+
+    static assert(!isForwardRange!NonForwardRange);
+
+    auto s = takeOne(NonForwardRange());
+    assert(s.front == 42);
 }
 
 /++
@@ -2876,18 +2896,6 @@ private alias lengthType(R) = typeof(R.init.length.init);
    Iterate several ranges in lockstep. The element type is a proxy tuple
    that allows accessing the current element in the $(D n)th range by
    using $(D e[n]).
-
-   Example:
-   ----
-   int[] a = [ 1, 2, 3 ];
-   string[] b = [ "a", "b", "c" ];
-   // prints 1:a 2:b 3:c
-   foreach (e; zip(a, b))
-   {
-   write(e[0], ':', e[1], ' ');
-   }
-   ----
-
    $(D Zip) offers the lowest range facilities of all components, e.g. it
    offers random access iff all ranges offer random access, and also
    offers mutation and swapping if all ranges offer it. Due to this, $(D
@@ -3237,7 +3245,7 @@ auto zip(Ranges...)(Ranges ranges)
 }
 
 ///
-@safe unittest
+pure unittest
 {
     import std.algorithm : sort;
     int[] a = [ 1, 2, 3 ];
@@ -3245,6 +3253,21 @@ auto zip(Ranges...)(Ranges ranges)
     sort!((c, d) => c[0] > d[0])(zip(a, b));
     assert(a == [ 3, 2, 1 ]);
     assert(b == [ "c", "b", "a" ]);
+}
+
+///
+unittest
+{
+   int[] a = [ 1, 2, 3 ];
+   string[] b = [ "a", "b", "c" ];
+
+   size_t idx = 0;
+   foreach (e; zip(a, b))
+   {
+       assert(e[0] == a[idx]);
+       assert(e[1] == b[idx]);
+       ++idx;
+   }
 }
 
 /// Ditto
@@ -3384,7 +3407,7 @@ unittest
     +/
 }
 
-@safe unittest
+pure unittest
 {
     import std.algorithm : sort;
 
@@ -3812,7 +3835,6 @@ private:
     alias ElementType = typeof(compute(State.init, cast(size_t) 1));
     State _state;
     size_t _n;
-    ElementType _cache;
 
     static struct DollarToken{}
 
@@ -3821,23 +3843,16 @@ public:
     {
         _state = initial;
         _n = n;
-        _cache = compute(_state, _n);
     }
 
     @property ElementType front()
     {
-        return _cache;
-    }
-
-    ElementType moveFront()
-    {
-        import std.algorithm : move;
-        return move(this._cache);
+        return compute(_state, _n);
     }
 
     void popFront()
     {
-        _cache = compute(_state, ++_n);
+        ++_n;
     }
 
     enum opDollar = DollarToken();
@@ -3966,13 +3981,34 @@ auto sequence(alias fun, State...)(State args)
     assert(equal(odds.take(3), [21, 23, 25]));
 }
 
+// Issue 5036
+unittest
+{
+    auto s = sequence!((a, n) => new int)(0);
+    assert(s.front != s.front);  // no caching
+}
+
 /**
-   Returns a range that goes through the numbers $(D begin), $(D begin +
-   step), $(D begin + 2 * step), $(D ...), up to and excluding $(D
-   end). The range offered is a random access range. The two-arguments
-   version has $(D step = 1). If $(D begin < end && step < 0) or $(D
-   begin > end && step > 0) or $(D begin == end), then an empty range is
-   returned.
+   Construct a range of values that span the given starting and stopping
+   values.
+
+   Params:
+   begin = The starting value.
+   end = The value that serves as the stopping criterion. This value is not
+        included in the range.
+   step = The value to add to the current value at each iteration.
+
+   Returns:
+   A range that goes through the numbers $(D begin), $(D begin + step),
+   $(D begin + 2 * step), $(D ...), up to and excluding $(D end).
+
+   The two-argument overloads have $(D step = 1). If $(D begin < end && step <
+   0) or $(D begin > end && step > 0) or $(D begin == end), then an empty range
+   is returned.
+
+   For built-in types, the range returned is a random access range. For
+   user-defined types that support $(D ++), the range is an input
+   range.
 
    Throws:
    $(D Exception) if $(D begin != end && step == 0), an exception is
@@ -4144,6 +4180,7 @@ auto iota(E)(E end)
     return iota(begin, end);
 }
 
+/// Ditto
 // Specialization for floating-point types
 auto iota(B, E, S)(B begin, E end, S step)
 if (isFloatingPoint!(CommonType!(B, E, S)))
@@ -4231,15 +4268,15 @@ if (isFloatingPoint!(CommonType!(B, E, S)))
 @safe unittest
 {
     import std.algorithm : equal;
+    import std.math : approxEqual;
 
-   import std.math : approxEqual;
-   auto r = iota(0, 10, 1);
-   assert(equal(r, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9][]));
-   r = iota(0, 11, 3);
-   assert(equal(r, [0, 3, 6, 9][]));
-   assert(r[2] == 6);
-   auto rf = iota(0.0, 0.5, 0.1);
-   assert(approxEqual(rf, [0.0, 0.1, 0.2, 0.3, 0.4]));
+    auto r = iota(0, 10, 1);
+    assert(equal(r, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9][]));
+    r = iota(0, 11, 3);
+    assert(equal(r, [0, 3, 6, 9][]));
+    assert(r[2] == 6);
+    auto rf = iota(0.0, 0.5, 0.1);
+    assert(approxEqual(rf, [0.0, 0.1, 0.2, 0.3, 0.4]));
 }
 
 unittest
@@ -4422,6 +4459,91 @@ unittest
         const s2 = cRange[0 .. 3];
         const l = cRange.length;
     }
+}
+
+/* Generic overload that handles arbitrary types that support arithmetic
+ * operations.
+ */
+/// ditto
+auto iota(B, E)(B begin, E end)
+    if (!isIntegral!(CommonType!(B, E)) &&
+        !isFloatingPoint!(CommonType!(B, E)) &&
+        !isPointer!(CommonType!(B, E)) &&
+        is(typeof((ref B b) { ++b; })) &&
+        (is(typeof(B.init < E.init)) || is(typeof(B.init == E.init))) )
+{
+    static struct Result
+    {
+        B current;
+        E end;
+
+        @property bool empty()
+        {
+            static if (is(typeof(B.init < E.init)))
+                return !(current < end);
+            else static if (is(typeof(B.init != E.init)))
+                return current == end;
+            else
+                static assert(0);
+        }
+        @property auto front() { return current; }
+        void popFront()
+        {
+            assert(!empty);
+            ++current;
+        }
+    }
+    return Result(begin, end);
+}
+
+/**
+User-defined types such as $(XREF bigint, BigInt) are also supported, as long
+as they can be incremented with $(D ++) and compared with $(D <) or $(D ==).
+*/
+// Issue 6447
+unittest
+{
+    import std.algorithm.comparison : equal;
+    import std.bigint;
+
+    auto s = BigInt(1_000_000_000_000);
+    auto e = BigInt(1_000_000_000_003);
+    auto r = iota(s, e);
+    assert(r.equal([
+        BigInt(1_000_000_000_000),
+        BigInt(1_000_000_000_001),
+        BigInt(1_000_000_000_002)
+    ]));
+}
+
+unittest
+{
+    import std.algorithm.comparison : equal;
+
+    // Test iota() for a type that only supports ++ and != but does not have
+    // '<'-ordering.
+    struct Cyclic(int wrapAround)
+    {
+        int current;
+
+        this(int start) { current = start % wrapAround; }
+
+        bool opEquals(Cyclic c) { return current == c.current; }
+        bool opEquals(int i) { return current == i; }
+        void opUnary(string op)() if (op == "++")
+        {
+            current = (current + 1) % wrapAround;
+        }
+    }
+    alias Cycle5 = Cyclic!5;
+
+    // Easy case
+    auto i1 = iota(Cycle5(1), Cycle5(4));
+    assert(i1.equal([1, 2, 3]));
+
+    // Wraparound case
+    auto i2 = iota(Cycle5(3), Cycle5(2));
+    assert(i2.equal([3, 4, 0, 1 ]));
 }
 
 /**
@@ -7267,31 +7389,6 @@ unittest
     $(D save) is ever called on the RefRange, then no operations on the saved
     range will affect the original.
 
-    Examples:
---------------------
-import std.algorithm;
-ubyte[] buffer = [1, 9, 45, 12, 22];
-auto found1 = find(buffer, 45);
-assert(found1 == [45, 12, 22]);
-assert(buffer == [1, 9, 45, 12, 22]);
-
-auto wrapped1 = refRange(&buffer);
-auto found2 = find(wrapped1, 45);
-assert(*found2.ptr == [45, 12, 22]);
-assert(buffer == [45, 12, 22]);
-
-auto found3 = find(wrapped2.save, 22);
-assert(*found3.ptr == [22]);
-assert(buffer == [45, 12, 22]);
-
-string str = "hello world";
-auto wrappedStr = refRange(&str);
-assert(str.front == 'h');
-str.popFrontN(5);
-assert(str == " world");
-assert(wrappedStr.front == ' ');
-assert(*wrappedStr.ptr == " world");
---------------------
   +/
 struct RefRange(R)
     if(isForwardRange!R)
@@ -7313,51 +7410,6 @@ public:
         one exception is when a $(D RefRange) is assigned $(D null) either
         directly or because $(D rhs) is $(D null). In that case, $(D RefRange)
         no longer refers to the original range but is $(D null).
-
-    Examples:
---------------------
-ubyte[] buffer1 = [1, 2, 3, 4, 5];
-ubyte[] buffer2 = [6, 7, 8, 9, 10];
-auto wrapped1 = refRange(&buffer1);
-auto wrapped2 = refRange(&buffer2);
-assert(wrapped1.ptr is &buffer1);
-assert(wrapped2.ptr is &buffer2);
-assert(wrapped1.ptr !is wrapped2.ptr);
-assert(buffer1 != buffer2);
-
-wrapped1 = wrapped2;
-
-//Everything points to the same stuff as before.
-assert(wrapped1.ptr is &buffer1);
-assert(wrapped2.ptr is &buffer2);
-assert(wrapped1.ptr !is wrapped2.ptr);
-
-//But buffer1 has changed due to the assignment.
-assert(buffer1 == [6, 7, 8, 9, 10]);
-assert(buffer2 == [6, 7, 8, 9, 10]);
-
-buffer2 = [11, 12, 13, 14, 15];
-
-//Everything points to the same stuff as before.
-assert(wrapped1.ptr is &buffer1);
-assert(wrapped2.ptr is &buffer2);
-assert(wrapped1.ptr !is wrapped2.ptr);
-
-//But buffer2 has changed due to the assignment.
-assert(buffer1 == [6, 7, 8, 9, 10]);
-assert(buffer2 == [11, 12, 13, 14, 15]);
-
-wrapped2 = null;
-
-//The pointer changed for wrapped2 but not wrapped1.
-assert(wrapped1.ptr is &buffer1);
-assert(wrapped2.ptr is null);
-assert(wrapped1.ptr !is wrapped2.ptr);
-
-//buffer2 is not affected by the assignment.
-assert(buffer1 == [6, 7, 8, 9, 10]);
-assert(buffer2 == [11, 12, 13, 14, 15]);
---------------------
       +/
     auto opAssign(RefRange rhs)
     {
@@ -7666,7 +7718,7 @@ private:
     R* _range;
 }
 
-//Verify Example.
+/// Basic Example
 unittest
 {
     import std.algorithm;
@@ -7693,7 +7745,7 @@ unittest
     assert(*wrappedStr.ptr == " world");
 }
 
-//Verify opAssign Example.
+/// opAssign Example.
 unittest
 {
     ubyte[] buffer1 = [1, 2, 3, 4, 5];
@@ -7940,7 +7992,7 @@ unittest
         assert(wrapper[2] == 2);
         assert(arr == [1, 42, 2, 41, 3, 40, 4, 42, 9]);
 
-        assert(*wrapper[3 .. 6].ptr, [41, 3, 40]);
+        assert(*wrapper[3 .. 6].ptr != null, [41, 3, 40]);
         assert(arr == [1, 42, 2, 41, 3, 40, 4, 42, 9]);
     }
 
@@ -8100,6 +8152,8 @@ struct NullSink
   will not actually be executed until the range is "walked" using functions
   that evaluate ranges, such as $(XREF array,array) or
   $(XREF algorithm,reduce).
+
+  See_Also: $(XREF argorithm,each)
 +/
 
 auto tee(Flag!"pipeOnPop" pipeOnPop = Yes.pipeOnPop, R1, R2)(R1 inputRange, R2 outputRange)

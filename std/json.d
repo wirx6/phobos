@@ -3,6 +3,42 @@
 /**
 JavaScript Object Notation
 
+Synopsis:
+----
+    //parse a file or string of json into a usable structure
+    string s = "{ \"language\": \"D\", \"rating\": 3.14, \"code\": \"42\" }";
+    JSONValue j = parseJSON(s);
+    writeln("Language: ", j["language"].str(),
+            " Rating: ", j["rating"].floating()
+    );
+
+    // j and j["language"] return JSONValue,
+    // j["language"].str returns a string
+
+    //check a type
+    long x;
+    if (j["code"].type() == JSON_TYPE.INTEGER)
+    {
+        x = j["code"].integer;
+    }
+    else
+    {
+        x = to!int(j["code"].str);
+    }
+
+    // create a json struct
+    JSONValue jj = [ "language": "D" ];
+    // rating doesnt exist yet, so use .object to assign
+    jj.object["rating"] = JSONValue(3.14);
+    // create an array to assign to list
+    jj.object["list"] = JSONValue( ["a", "b", "c"] );
+    // list already exists, so .object optional
+    jj["list"].array ~= JSONValue("D");
+
+    s = j.toString();
+    writeln(s);
+----
+
 Copyright: Copyright Jeremie Pelletier 2008 - 2009.
 License:   $(WEB www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
 Authors:   Jeremie Pelletier, David Herberth
@@ -58,10 +94,20 @@ struct JSONValue
     private Store store;
     private JSON_TYPE type_tag;
 
-    /// Specifies the _type of the value stored in this structure.
+    /**
+      Returns the JSON_TYPE of the value stored in this structure.
+    */
     @property JSON_TYPE type() const
     {
         return type_tag;
+    }
+    ///
+    unittest
+    {
+          string s = "{ \"language\": \"D\" }";
+          JSONValue j = parseJSON(s);
+          assert(j.type() == JSON_TYPE.OBJECT);
+          assert(j["language"].type() == JSON_TYPE.STRING);
     }
 
     /**
@@ -120,6 +166,20 @@ struct JSONValue
     {
         assign(v);
         return store.str;
+    }
+    ///
+    unittest
+    {
+        JSONValue j = [ "language": "D" ];
+
+        // get value
+        assert(j["language"].str() == "D");
+        // str() or str is ok
+        assert(j["language"].str == "D");
+
+        // change existing key to new string
+        j["language"].str("Perl");
+        assert(j["language"].str == "Perl");
     }
 
     /// Value getter/setter for $(D JSON_TYPE.INTEGER).
@@ -317,6 +377,18 @@ struct JSONValue
         store = arg.store;
         type_tag = arg.type;
     }
+    ///
+    unittest
+    {
+        JSONValue j = JSONValue( "a string" );
+        j = JSONValue(42);
+
+        j = JSONValue( [1, 2, 3] );
+        assert(j.type() == JSON_TYPE.ARRAY);
+
+        j = JSONValue( ["language": "D"] );
+        assert(j.type() == JSON_TYPE.OBJECT);
+    }
 
     void opAssign(T)(T arg) if(!isStaticArray!T && !is(T : JSONValue))
     {
@@ -338,6 +410,13 @@ struct JSONValue
                                 "JSONValue array index is out of range");
         return store.array[i];
     }
+    ///
+    unittest
+    {
+        JSONValue j = JSONValue( [42, 43, 44] );
+        assert( j[0].integer == 42 );
+        assert( j[1].integer == 43 );
+    }
 
     /// Hash syntax for json objects.
     /// Throws $(D JSONException) if $(D type) is not $(D JSON_TYPE.OBJECT).
@@ -347,6 +426,12 @@ struct JSONValue
                                 "JSONValue is not an object");
         return *enforce!JSONException(k in store.object,
                                         "Key not found: " ~ k);
+    }
+    ///
+    unittest
+    {
+        JSONValue j = JSONValue( ["language": "D"] );
+        assert( j["language"].str() == "D" );
     }
 
     /// Operator sets $(D value) for element of JSON object by $(D key)
@@ -364,6 +449,13 @@ struct JSONValue
 
         store.object[key] = value;
     }
+    ///
+    unittest
+    {
+            JSONValue j = JSONValue( ["language": "D"] );
+            j["language"].str = "Perl";
+            assert( j["language"].str == "Perl" );
+    }
 
     void opIndexAssign(T)(T arg, size_t i)
     {
@@ -372,6 +464,13 @@ struct JSONValue
         enforceEx!JSONException(i < store.array.length,
                                 "JSONValue array index is out of range");
         store.array[i] = arg;
+    }
+    ///
+    unittest
+    {
+            JSONValue j = JSONValue( ["Perl", "C"] );
+            j[1].str = "D";
+            assert( j[1].str == "D" );
     }
 
     JSONValue opBinary(string op : "~", T)(T arg)
@@ -423,6 +522,12 @@ struct JSONValue
         enforce!JSONException(type == JSON_TYPE.OBJECT,
                                 "JSONValue is not an object");
         return k in store.object;
+    }
+    ///
+    unittest
+    {
+        JSONValue j = [ "language": "D", "author": "walter" ];
+        string a = ("author" in j).str;
     }
 
     /// Implements the foreach $(D opApply) interface for json arrays.
@@ -488,11 +593,30 @@ JSONValue parseJSON(T)(T json, int maxDepth = -1) if(isInputRange!T)
 
     int depth = -1;
     dchar next = 0;
-    int line = 1, pos = 1;
+    int line = 1, pos = 0;
 
     void error(string msg)
     {
         throw new JSONException(msg, line, pos);
+    }
+
+    dchar popChar()
+    {
+        if (json.empty) error("Unexpected end of data.");
+        dchar c = json.front;
+        json.popFront();
+
+        if(c == '\n')
+        {
+            line++;
+            pos = 0;
+        }
+        else
+        {
+            pos++;
+        }
+
+        return c;
     }
 
     dchar peekChar()
@@ -500,8 +624,7 @@ JSONValue parseJSON(T)(T json, int maxDepth = -1) if(isInputRange!T)
         if(!next)
         {
             if(json.empty) return '\0';
-            next = json.front;
-            json.popFront();
+            next = popChar();
         }
         return next;
     }
@@ -522,21 +645,7 @@ JSONValue parseJSON(T)(T json, int maxDepth = -1) if(isInputRange!T)
             next = 0;
         }
         else
-        {
-            if(json.empty) error("Unexpected end of data.");
-            c = json.front;
-            json.popFront();
-        }
-
-        if(c == '\n' || (c == '\r' && peekChar() != '\n'))
-        {
-            line++;
-            pos = 1;
-        }
-        else
-        {
-            pos++;
-        }
+            c = popChar();
 
         return c;
     }
@@ -609,7 +718,7 @@ JSONValue parseJSON(T)(T json, int maxDepth = -1) if(isInputRange!T)
                 goto Next;
         }
 
-        return str.data ? str.data : "";
+        return str.data.length ? str.data : "";
     }
 
     void parseValue(JSONValue* value)
@@ -1245,4 +1354,21 @@ unittest
     jv = [5, 4, 3, 2, 1];
     assert( jv.type == JSON_TYPE.ARRAY );
     assert( jv[3].integer == 2 );
+}
+
+unittest
+{
+    auto s = q"EOF
+[
+  1,
+  2,
+  3,
+  potato
+]
+EOF";
+
+    import std.exception;
+
+    auto e = collectException!JSONException(parseJSON(s));
+    assert(e.msg == "Unexpected character 'p'. (Line 5:3)", e.msg);
 }

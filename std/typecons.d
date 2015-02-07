@@ -664,7 +664,7 @@ template Tuple(Specs...)
         /**
          * Converts to string.
          */
-        void toString()(scope void delegate(const(char)[]) sink)
+        void toString(DG)(scope DG sink)
         {
             enum header = typeof(this).stringof ~ "(",
                  footer = ")",
@@ -870,7 +870,7 @@ unittest
         static struct R
         {
             Tuple!(int, int) _front;
-            @property ref Tuple!(int, int) front() { return _front;  }
+            @property ref Tuple!(int, int) front() return { return _front;  }
             @property bool empty() { return _front[0] >= 10; }
             void popFront() { ++_front[0]; }
         }
@@ -1124,22 +1124,16 @@ unittest
     a = b;
 }
 
+@nogc unittest
+{
+    alias T = Tuple!(string, "s");
+    T x;
+    x = T.init;
+}
+
 /**
 Returns a $(D Tuple) object instantiated and initialized according to
 the arguments.
-
-Example:
-----
-auto value = tuple(5, 6.7, "hello");
-assert(value[0] == 5);
-assert(value[1] == 6.7);
-assert(value[2] == "hello");
-
-// Field names can be provided.
-auto entry = tuple!("index", "value")(4, "Hello");
-assert(entry.index == 4);
-assert(entry.value == "Hello");
-----
 */
 
 template tuple(Names...)
@@ -1183,6 +1177,20 @@ template tuple(Names...)
     }
 }
 
+///
+unittest
+{
+    auto value = tuple(5, 6.7, "hello");
+    assert(value[0] == 5);
+    assert(value[1] == 6.7);
+    assert(value[2] == "hello");
+
+    // Field names can be provided.
+    auto entry = tuple!("index", "value")(4, "Hello");
+    assert(entry.index == 4);
+    assert(entry.value == "Hello");
+}
+
 /**
 Returns $(D true) if and only if $(D T) is an instance of the
 $(D Tuple) struct template.
@@ -1199,6 +1207,7 @@ template isTuple(T)
     }
 }
 
+///
 unittest
 {
     static assert(isTuple!(Tuple!()));
@@ -1206,7 +1215,10 @@ unittest
     static assert(isTuple!(Tuple!(int, real, string)));
     static assert(isTuple!(Tuple!(int, "x", real, "y")));
     static assert(isTuple!(Tuple!(int, Tuple!(real), string)));
+}
 
+unittest
+{
     static assert(isTuple!(const Tuple!(int)));
     static assert(isTuple!(immutable Tuple!(int)));
 
@@ -1482,14 +1494,6 @@ unittest
 /**
   Order the provided members to minimize size while preserving alignment.
   Returns a declaration to be mixed in.
-
-Example:
----
-struct Banner {
-  mixin(alignForSize!(byte[6], double)(["name", "height"]));
-}
----
-
   Alignment is not always optimal for 80-bit reals, nor for structs declared
   as align(1).
 */
@@ -1521,6 +1525,14 @@ string alignForSize(E...)(string[] names...)
     return s;
 }
 
+///
+unittest
+{
+    struct Banner {
+        mixin(alignForSize!(byte[6], double)(["name", "height"]));
+    }
+}
+
 unittest
 {
     enum x = alignForSize!(int[], char[3], short, double[5])("x", "y","z", "w");
@@ -1543,15 +1555,6 @@ Defines a value paired with a distinctive "null" state that denotes
 the absence of a value. If default constructed, a $(D
 Nullable!T) object starts in the null state. Assigning it renders it
 non-null. Calling $(D nullify) can nullify it again.
-
-Example:
-----
-Nullable!int a;
-assert(a.isNull);
-a = 5;
-assert(!a.isNull);
-assert(a == 5);
-----
 
 Practically $(D Nullable!T) stores a $(D T) and a $(D bool).
  */
@@ -1629,6 +1632,16 @@ Implicitly converts to $(D T).
 $(D this) must not be in the null state.
  */
     alias get this;
+}
+
+///
+unittest
+{
+    Nullable!int a;
+    assert(a.isNull);
+    a = 5;
+    assert(!a.isNull);
+    assert(a == 5);
 }
 
 unittest
@@ -4014,20 +4027,6 @@ autoInit == RefCountedAutoInitialize.no), user code must call either
 $(D refCountedStore.isInitialized) or $(D refCountedStore.ensureInitialized)
 before attempting to access the payload. Not doing so results in null
 pointer dereference.
-
-Example:
-----
-// A pair of an $(D int) and a $(D size_t) - the latter being the
-// reference count - will be dynamically allocated
-auto rc1 = RefCounted!int(5);
-assert(rc1 == 5);
-// No more allocation, add just one extra reference count
-auto rc2 = rc1;
-// Reference semantics
-rc2 = 42;
-assert(rc1 == 42);
-// the pair will be freed when rc1 and rc2 go out of scope
-----
  */
 struct RefCounted(T, RefCountedAutoInitialize autoInit =
         RefCountedAutoInitialize.yes)
@@ -4221,6 +4220,21 @@ assert(refCountedStore.isInitialized)).
     alias refCountedPayload this;
 }
 
+///
+unittest
+{
+    // A pair of an $(D int) and a $(D size_t) - the latter being the
+    // reference count - will be dynamically allocated
+    auto rc1 = RefCounted!int(5);
+    assert(rc1 == 5);
+    // No more allocation, add just one extra reference count
+    auto rc2 = rc1;
+    // Reference semantics
+    rc2 = 42;
+    assert(rc1 == 42);
+    // the pair will be freed when rc1 and rc2 go out of scope
+}
+
 unittest
 {
     RefCounted!int* p;
@@ -4306,30 +4320,6 @@ unittest
 
 /**
 Make proxy for $(D a).
-
-Example:
-----
-struct MyInt
-{
-    private int value;
-    mixin Proxy!value;
-
-    this(int n){ value = n; }
-}
-
-MyInt n = 10;
-
-// Enable operations that original type has.
-++n;
-assert(n == 11);
-assert(n * 2 == 22);
-
-void func(int n) { }
-
-// Disable implicit conversions to original type.
-//int x = n;
-//func(n);
-----
  */
 mixin template Proxy(alias a)
 {
@@ -4513,6 +4503,31 @@ mixin template Proxy(alias a)
     {
         alias opDollar = a.opDollar;
     }
+}
+
+///
+unittest
+{
+    struct MyInt
+    {
+        private int value;
+        mixin Proxy!value;
+
+        this(int n){ value = n; }
+    }
+
+    MyInt n = 10;
+
+    // Enable operations that original type has.
+    ++n;
+    assert(n == 11);
+    assert(n * 2 == 22);
+
+    void func(int n) { }
+
+    // Disable implicit conversions to original type.
+    //int x = n;
+    //func(n);
 }
 
 unittest
@@ -5577,8 +5592,8 @@ struct No
         enum opDispatch = Flag!name.no;
     }
 }
-//template no(string name) { enum Flag!name no = Flag!name.no; }
 
+///
 unittest
 {
     Flag!"abc" flag1;

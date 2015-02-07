@@ -1,8 +1,12 @@
 // Written in the D programming language.
 
 /**
+String handling functions. Note that many typical string functions are found in 
+$(D std.algorithm) because all D strings are bidirectional ranges.
+
 $(SCRIPT inhibitQuickIndex = 1;)
 
+$(DIVC quickindex,
 $(BOOKTABLE ,
 $(TR $(TH Category) $(TH Functions) )
 $(TR $(TDNW Searching)
@@ -50,8 +54,8 @@ $(TR $(TDNW Miscellaneous)
     )
 )
 )
+)
 
-This module presents String handling functions.
 Objects of types $(D _string), $(D wstring), and $(D dstring) are value types
 and cannot be mutated element-by-element. For using mutation during building
 strings, use $(D char[]), $(D wchar[]), or $(D dchar[]). The $(D xxxstring)
@@ -73,7 +77,6 @@ $(XREF format, format)
 are publicly imported.
 
 Macros: WIKI = Phobos/StdString
-MYREF = <font face='Consolas, "Bitstream Vera Sans Mono", "Andale Mono", Monaco, "DejaVu Sans Mono", "Lucida Console", monospace'><a href="#.$1">$1</a>&nbsp;</font>
 
 Copyright: Copyright Digital Mars 2007-.
 
@@ -3172,7 +3175,7 @@ body
         assert(translate(to!S("hello world"), makeTrans("hl", "q5")) == to!S("qe55o wor5d"));
         assert(translate(to!S("hello \U00010143 world"), makeTrans("hl", "q5")) ==
                to!S("qe55o \U00010143 wor5d"));
-        assert(translate(to!S("hello world"), makeTrans("ol", "1o")), to!S("heool wlrdd"));
+        assert(translate(to!S("hello world"), makeTrans("ol", "1o")) == to!S("heoo1 w1rod"));
         assert(translate(to!S("hello world"), makeTrans("", "")) == to!S("hello world"));
         assert(translate(to!S("hello world"), makeTrans("12345", "67890")) == to!S("hello world"));
         assert(translate(to!S("hello \U00010143 world"), makeTrans("12345", "67890")) ==
