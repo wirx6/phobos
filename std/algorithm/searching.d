@@ -1,6 +1,6 @@
 // Written in the D programming language.
 /**
-This is a submodule of $(LINK2 std_algorithm_package.html, std.algorithm).
+This is a submodule of $(LINK2 std_algorithm.html, std.algorithm).
 It contains generic _searching algorithms.
 
 $(BOOKTABLE Cheat Sheet,
@@ -1958,7 +1958,7 @@ if (Ranges.length > 1 && is(typeof(startsWith!pred(haystack, needles))))
 
 @safe unittest
 {
-    import std.algorithm : rndstuff; // FIXME
+    import std.algorithm.internal : rndstuff;
     import std.typetuple : TypeTuple;
     import std.uni : toUpper;
 
@@ -1989,7 +1989,7 @@ if (Ranges.length > 1 && is(typeof(startsWith!pred(haystack, needles))))
 
 @safe unittest
 {
-    import std.algorithm : rndstuff; // FIXME
+    import std.algorithm.internal : rndstuff;
     import std.algorithm.comparison : equal;
     import std.range : retro;
     import std.typetuple : TypeTuple;
@@ -2149,7 +2149,7 @@ template canFind(alias pred="a == b")
 
 @safe unittest
 {
-    import std.algorithm : rndstuff; // FIXME
+    import std.algorithm.internal : rndstuff;
     debug(std_algorithm) scope(success)
         writeln("unittest @", __FILE__, ":", __LINE__, " done.");
     auto a = rndstuff!(int)();
@@ -2573,6 +2573,7 @@ minCount(alias pred = "a < b", Range)(Range range)
     if (isInputRange!Range && !isInfinite!Range &&
         is(typeof(binaryFun!pred(range.front, range.front))))
 {
+    import std.algorithm.internal : algoFormat;
     import std.exception : enforce;
 
     alias T  = ElementType!Range;
@@ -2626,7 +2627,7 @@ minCount(alias pred = "a < b", Range)(Range range)
     }
     else static if (hasLvalueElements!Range)
     {
-        import std.algorithm : addressOf; // FIXME
+        import std.algorithm.internal : addressOf;
         T* p = addressOf(range.front);
         for (range.popFront(); !range.empty; range.popFront())
         {
@@ -2849,11 +2850,39 @@ true if the initial segment of $(D r1) matches $(D r2), and $(D r1) has been
 advanced to the point past this segment; otherwise false, and $(D r1) is left
 in its original position.
  */
-bool skipOver(alias pred = "a == b", R1, R2)(ref R1 r1, R2 r2)
+bool skipOver(R1, R2)(ref R1 r1, R2 r2)
+    if (isForwardRange!R1 && isInputRange!R2
+        && is(typeof(r1.front == r2.front)))
+{
+    static if (is(typeof(r1[0 .. $] == r2) : bool)
+        && is(typeof(r2.length > r1.length) : bool)
+        && is(typeof(r1 = r1[r2.length .. $])))
+    {
+        if (r2.length > r1.length || r1[0 .. r2.length] != r2)
+        {
+            return false;
+        }
+        r1 = r1[r2.length .. $];
+        return true;
+    }
+    else
+    {
+        return skipOver!((a, b) => a == b)(r1, r2);
+    }
+}
+
+/// Ditto
+bool skipOver(alias pred, R1, R2)(ref R1 r1, R2 r2)
     if (is(typeof(binaryFun!pred(r1.front, r2.front))) &&
         isForwardRange!R1 &&
         isInputRange!R2)
 {
+    static if (hasLength!R1 && hasLength!R2)
+    {
+        // Shortcut opportunity!
+        if (r2.length > r1.length)
+            return false;
+    }
     auto r = r1.save;
     while (!r2.empty && !r.empty && binaryFun!pred(r.front, r2.front))
     {
@@ -2900,7 +2929,14 @@ true if the first element matches the given element according to the given
 predicate, and the range has been advanced by one element; otherwise false, and
 the range is left untouched.
  */
-bool skipOver(alias pred = "a == b", R, E)(ref R r, E e)
+bool skipOver(R, E)(ref R r, E e)
+    if (isInputRange!R && is(typeof(r.front == e) : bool))
+{
+    return skipOver!((a, b) => a == b)(r, e);
+}
+
+/// Ditto
+bool skipOver(alias pred, R, E)(ref R r, E e)
     if (is(typeof(binaryFun!pred(r.front, e))) && isInputRange!R)
 {
     if (r.empty || !binaryFun!pred(r.front, e))

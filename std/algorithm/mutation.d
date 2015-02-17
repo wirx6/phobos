@@ -1,6 +1,6 @@
 // Written in the D programming language.
 /**
-This is a submodule of $(LINK2 std_algorithm_package.html, std.algorithm).
+This is a submodule of $(LINK2 std_algorithm.html, std.algorithm).
 It contains generic _mutation algorithms.
 
 $(BOOKTABLE Cheat Sheet,
@@ -702,7 +702,7 @@ void initializeAll(Range)(Range range)
     alias T = ElementType!Range;
     static if (hasElaborateAssign!T)
     {
-        import std.algorithm : addressOf; // FIXME
+        import std.algorithm.internal : addressOf;
         //Elaborate opAssign. Must go the memcpy road.
         //We avoid calling emplace here, because our goal is to initialize to
         //the static state of T.init,

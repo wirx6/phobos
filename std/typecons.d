@@ -3414,7 +3414,7 @@ if (Targets.length >= 1 && allSatisfy!(isMutable, Targets))
             }
 
             import std.conv : to;
-            import std.algorithm : forward;
+            import std.functional : forward;
             template generateFun(size_t i)
             {
                 enum name = TargetMembers[i].name;
@@ -4030,7 +4030,7 @@ pointer dereference.
  */
 struct RefCounted(T, RefCountedAutoInitialize autoInit =
         RefCountedAutoInitialize.yes)
-if (!is(T == class))
+if (!is(T == class) && !(is(T == interface)))
 {
     /// $(D RefCounted) storage implementation.
     struct RefCountedStore

@@ -1,5 +1,5 @@
 /**
-This module is a submodule of $(LINK2 std_range_package.html, std.range).
+This module is a submodule of $(LINK2 std_range.html, std.range).
 
 The main $(D std.range) module provides template-based tools for working with
 ranges, but sometimes an object-based interface for ranges is needed, such as
@@ -125,7 +125,8 @@ interface InputRange(E) {
 ///
 unittest
 {
-    import std.algorithm : map, iota;
+    import std.algorithm : map;
+    import std.range : iota;
 
     void useRange(InputRange!int range) {
         // Function body.
