@@ -4720,7 +4720,7 @@ private:
             }
             else version (ARM_SoftFloat)
             {
-                return 0;
+                cont = 0;
             }
             else version (ARM)
             {
