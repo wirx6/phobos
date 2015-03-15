@@ -1168,8 +1168,8 @@ real atan2(real y, real x) @trusted pure nothrow @nogc
         {
             asm pure nothrow @nogc {
                 naked;
-                fld real ptr [RDX]; // y
-                fld real ptr [RCX]; // x
+                fld real ptr [RCX]; // y
+                fld real ptr [RDX]; // x
                 fpatan;
                 ret;
             }
@@ -2381,12 +2381,16 @@ version (none) {
     {
         version (Win64)
         {
+            // RCX: pointer to creal result
+            // RDX: pointer to y
             asm pure nothrow @nogc
             {
                 naked;
-                fld     real ptr [ECX];
+                fld     real ptr [RDX]; // y
                 fsincos;
                 fxch    ST(1), ST(0);
+                fstp    real ptr [RCX];
+                fstp    real ptr 16[RCX];
                 ret;
             }
         }
@@ -3582,9 +3586,9 @@ real scalbn(real x, int n) @trusted nothrow @nogc
         {
             asm pure nothrow @nogc {
                 naked                           ;
-                mov     16[RSP],RCX             ;
+                mov     16[RSP],RDX             ;
                 fild    word ptr 16[RSP]        ;
-                fld     real ptr [RDX]          ;
+                fld     real ptr [RCX]          ;
                 fscale                          ;
                 fstp    ST(1)                   ;
                 ret                             ;
