@@ -87,11 +87,6 @@ private {
   import std.file;
 }
 
-// LDC_FIXME: Varargs on x86_64 are broken, and on x86 printf() compiles but
-// the test fails as well.
-version (LDC) version (X86_64) version = LDC_X86_64;
-version (LDC) version = LDC_BROKEN_PRINTF;
-
 /// InputStream is the interface for readable streams.
 
 interface InputStream {
@@ -1180,9 +1175,7 @@ class Stream : InputStream, OutputStream {
     size_t psize = buffer.length;
     size_t count;
     while (true) {
-      version (LDC_X86_64)
-        throw new Exception("unsupported platform");
-      else version (Windows) {
+      version (Windows) {
         count = _vsnprintf(p, psize, f, args);
         if (count != -1)
           break;
@@ -1200,39 +1193,14 @@ class Stream : InputStream, OutputStream {
       } else
           throw new Exception("unsupported platform");
     }
-    version (LDC_X86_64) {
-
-    } else {
-        writeString(p[0 .. count]);
-        return count;
-    }
+    writeString(p[0 .. count]);
+    return count;
   }
 
   // writes data to stream using printf() syntax,
   // returns number of bytes written
-  version (Win64)
   size_t printf(const(char)[] format, ...) {
     return vprintf(format, _argptr);
-  }
-  else version (X86_64)
-  size_t printf(const(char)[] format, ...) {
-    version (LDC)
-      throw new Exception("unsupported platform");
-    else
-    {
-      va_list ap;
-      va_start(ap, __va_argsave);
-      auto result = vprintf(format, ap);
-      va_end(ap);
-      return result;
-    }
-  }
-  else
-  size_t printf(const(char)[] format, ...) {
-    va_list ap;
-    ap = cast(va_list) &format;
-    ap += format.sizeof;
-    return vprintf(format, ap);
   }
 
   private void doFormatCallback(dchar c) {
@@ -2748,10 +2716,8 @@ unittest {
   assert (m.available == 90);
   assert (m.size == 100);
   m.seekSet (0);
-  version (LDC_BROKEN_PRINTF) {} else {
   assert (m.printf ("Answer is %d", 42) == 12);
   assert (buf[0..12] == "Answer is 42");
-  }
 }
 
 /// This subclass reads and constructs an array of bytes in memory.
