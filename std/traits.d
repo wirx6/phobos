@@ -451,9 +451,7 @@ version(unittest)
         ref const(Inner[string]) func( ref Inner var1, lazy scope string var2 );
         ref const(Inner[string]) retfunc( return ref Inner var1 );
         Inner inoutFunc(inout Inner) inout;
-version (LDC) { /+ LDC_FIXME: GitHub #407. +/ } else {
         shared(const(Inner[string])[]) data;
-}
         const Inner delegate(double, string) @safe nothrow deleg;
         inout(int) delegate(inout int) inout inoutDeleg;
         Inner function(out double, string) funcPtr;
@@ -792,10 +790,8 @@ unittest
         // qualified key for AA
         static assert(fqn!(typeof(qualAarray)) == format("const(%s[const(%s)])", inner_name, inner_name));
 
-version (LDC) { /+ LDC_FIXME: GitHub #407. +/ } else {
         // Qualified composed data types
         static assert(fqn!(typeof(data)) == format("shared(const(%s[string])[])", inner_name));
-}
 
         // Function types + function attributes
         static assert(fqn!(typeof(func)) == format("const(%s[string])(ref %s, scope lazy string) ref", inner_name, inner_name));
