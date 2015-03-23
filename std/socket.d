@@ -86,16 +86,6 @@ else version(Posix)
             TCP_KEEPINTVL = 5
         }
     }
-    else version(Solaris)
-    {
-        import core.sys.posix.sys.socket;
-        import core.sys.posix.sys.select;
-        private enum SD_RECEIVE = SHUT_RD;
-        private enum SD_SEND    = SHUT_WR;
-        private enum SD_BOTH    = SHUT_RDWR;
-    }
-    else
-        static assert(false);
 
     import core.sys.posix.netdb;
     import core.sys.posix.sys.un : sockaddr_un;
