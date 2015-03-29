@@ -744,6 +744,7 @@ uint multibyteMulAdd(char op)(uint [] dest, const uint [] src, uint
     // EDI = dest
     // ESI = src
 
+    enum string OP = (op=='+')? "add" : "sub";
     version(D_PIC) {
         enum { zero = 0 }
     } else version(LDC) {
