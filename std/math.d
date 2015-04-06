@@ -4314,6 +4314,14 @@ public:
 }
 
 ///
+version (LDC)
+{
+    unittest
+    {
+        pragma(msg, "ieeeFlags test disabled, see LDC Issue #888");
+    }
+}
+else
 unittest
 {
     static void func() {
