@@ -2556,79 +2556,203 @@ unittest
  *      $(TR $(TD $(NAN))            $(TD FP_ILOGBNAN) $(TD no))
  *      )
  */
-int ilogb(real x)  @trusted nothrow @nogc
+int ilogb(T)(const T x) @trusted nothrow @nogc
+    if(isFloatingPoint!T)
 {
-    version (Win64_DMD_InlineAsm_X87)
+    import core.bitop : bsr;
+    // Provide a bsr implementation for ulong in 32-bit mode
+    int bsr_ulong(ulong x) @trusted pure nothrow @nogc
     {
-        asm pure nothrow @nogc
+        static if (size_t.sizeof == 4)
         {
-            naked                       ;
-            fld     real ptr [RCX]      ;
-            fxam                        ;
-            fstsw   AX                  ;
-            and     AH,0x45             ;
-            cmp     AH,0x40             ;
-            jz      Lzeronan            ;
-            cmp     AH,5                ;
-            jz      Linfinity           ;
-            cmp     AH,1                ;
-            jz      Lzeronan            ;
-            fxtract                     ;
-            fstp    ST(0)               ;
-            fistp   dword ptr 8[RSP]    ;
-            mov     EAX,8[RSP]          ;
-            ret                         ;
-
-        Lzeronan:
-            mov     EAX,0x80000000      ;
-            fstp    ST(0)               ;
-            ret                         ;
-
-        Linfinity:
-            mov     EAX,0x7FFFFFFF      ;
-            fstp    ST(0)               ;
-            ret                         ;
+            size_t msb = x >> 32;
+            size_t lsb = cast(size_t) x;
+            if (msb)
+                return bsr(msb) + 32;
+            else
+                return bsr(lsb);
+        }
+        else
+        {
+            return bsr(x);
         }
     }
-    else version (CRuntime_Microsoft)
-    {
-        int res;
-        asm pure nothrow @nogc
-        {
-            naked                       ;
-            fld     real ptr [x]        ;
-            fxam                        ;
-            fstsw   AX                  ;
-            and     AH,0x45             ;
-            cmp     AH,0x40             ;
-            jz      Lzeronan            ;
-            cmp     AH,5                ;
-            jz      Linfinity           ;
-            cmp     AH,1                ;
-            jz      Lzeronan            ;
-            fxtract                     ;
-            fstp    ST(0)               ;
-            fistp   res                 ;
-            mov     EAX,res             ;
-            jmp     Ldone               ;
 
-        Lzeronan:
-            mov     EAX,0x80000000      ;
-            fstp    ST(0)               ;
+    alias F = floatTraits!T;
 
-        Linfinity:
-            mov     EAX,0x7FFFFFFF      ;
-            fstp    ST(0)               ;
-        Ldone: ;
-        }
-    }
+    Unqual!T vf = x;
+    ushort* vu = cast(ushort*)&vf;
+    uint* vui = cast(uint*)&vf;
+    static if(is(Unqual!T == float))
+        int* vi = cast(int*)&vf;
     else
-        return core.stdc.math.ilogbl(x);
+        long* vl = cast(long*)&vf;
+
+    int ex = vu[F.EXPPOS_SHORT] & F.EXPMASK;
+    static if (F.realFormat == RealFormat.ieeeExtended)
+    {
+        if (ex)
+        {   // If exponent is non-zero
+            if (ex == F.EXPMASK) // infinity or NaN
+            {
+                if (*vl &  0x7FFF_FFFF_FFFF_FFFF)  // NaN
+                    return FP_ILOGBNAN;
+                else // +-infinity
+                    return int.max;
+            }
+            else
+            {
+                return ex - F.EXPBIAS - 1;
+            }
+        }
+        else if (!*vl)
+        {   // vf is +-0.0
+            return FP_ILOGB0;
+        }
+        else
+        {   // subnormal
+            uint msb = vui[MANTISSA_MSB];
+            uint lsb = vui[MANTISSA_LSB];
+            if (msb)
+                return ex - F.EXPBIAS - T.mant_dig + 1 + 32 + bsr(msb);
+            else
+                return ex - F.EXPBIAS - T.mant_dig + 1 + bsr(lsb);
+        }
+    }
+    else static if (F.realFormat == RealFormat.ieeeQuadruple)
+    {
+        if (ex)     // If exponent is non-zero
+        {
+            if (ex == F.EXPMASK)
+            {   // infinity or NaN
+                if (vl[MANTISSA_LSB] | ( vl[MANTISSA_MSB] & 0x0000_FFFF_FFFF_FFFF))  // NaN
+                    return FP_ILOGBNAN;
+                else // +- infinity
+                    return int.max;
+            }
+            else
+            {
+                return ex - F.EXPBIAS - 1;
+            }
+        }
+        else if ((vl[MANTISSA_LSB]
+                       |(vl[MANTISSA_MSB] & 0x0000_FFFF_FFFF_FFFF)) == 0)
+        {   // vf is +-0.0
+            return FP_ILOGB0;
+        }
+        else
+        {   // subnormal
+            ulong msb = vl[MANTISSA_MSB] & 0x0000_FFFF_FFFF_FFFF;
+            ulong lsb = vl[MANTISSA_LSB];
+            if (msb)
+                return ex - F.EXPBIAS - T.mant_dig + 1 + bsr_ulong(msb) + 64;
+            else
+                return ex - F.EXPBIAS - T.mant_dig + 1 + bsr_ulong(lsb);
+        }
+    }
+    else static if (F.realFormat == RealFormat.ieeeDouble)
+    {
+        if (ex) // If exponent is non-zero
+        {
+            if (ex == F.EXPMASK)   // infinity or NaN
+            {
+                if ((*vl & 0x7FFF_FFFF_FFFF_FFFF) == 0x7FF0_0000_0000_0000)  // +- infinity
+                    return int.max;
+                else // NaN
+                    return FP_ILOGBNAN;
+            }
+            else
+            {
+                return ((ex - F.EXPBIAS) >> 4) - 1;
+            }
+        }
+        else if (!(*vl & 0x7FFF_FFFF_FFFF_FFFF))
+        {   // vf is +-0.0
+            return FP_ILOGB0;
+        }
+        else
+        {   // subnormal
+            uint msb = vui[MANTISSA_MSB] & F.MANTISSAMASK_INT;
+            uint lsb = vui[MANTISSA_LSB];
+            if (msb)
+                return ((ex - F.EXPBIAS) >> 4) - T.mant_dig + 1 + bsr(msb) + 32;
+            else
+                return ((ex - F.EXPBIAS) >> 4) - T.mant_dig + 1 + bsr(lsb);
+        }
+    }
+    else static if (F.realFormat == RealFormat.ieeeSingle)
+    {
+        if (ex) // If exponent is non-zero
+        {
+            if (ex == F.EXPMASK)   // infinity or NaN
+            {
+                if ((*vi & 0x7FFF_FFFF) == 0x7F80_0000)  // +- infinity
+                    return int.max;
+                else // NaN
+                    return FP_ILOGBNAN;
+            }
+            else
+            {
+                return ((ex - F.EXPBIAS) >> 7) - 1;
+            }
+        }
+        else if (!(*vi & 0x7FFF_FFFF))
+        {   // vf is +-0.0
+            return FP_ILOGB0;
+        }
+        else
+        {   // subnormal
+            uint mantissa = vui[0] & F.MANTISSAMASK_INT;
+            return ((ex - F.EXPBIAS) >> 7) - T.mant_dig + 1 + bsr(mantissa);
+        }
+    }
+    else // static if (F.realFormat == RealFormat.ibmExtended)
+    {
+        core.stdc.math.ilogbl(x);
+    }
 }
 
 alias FP_ILOGB0   = core.stdc.math.FP_ILOGB0;
 alias FP_ILOGBNAN = core.stdc.math.FP_ILOGBNAN;
 
+@trusted nothrow @nogc unittest
+{
+    assert(ilogb(real.nan) == FP_ILOGBNAN);
+    assert(ilogb(-real.nan) == FP_ILOGBNAN);
+    assert(ilogb(-float.nan) == FP_ILOGBNAN);
+    assert(ilogb(double.nan) == FP_ILOGBNAN);
+    assert(ilogb(0.0) == FP_ILOGB0);
+    assert(ilogb(-0.0) == FP_ILOGB0);
+    assert(ilogb(-0.0F) == FP_ILOGB0);
+    assert(ilogb(-0.0L) == FP_ILOGB0);
+    assert(ilogb(real.infinity) == int.max);
+    assert(ilogb(-real.infinity) == int.max);
+    assert(ilogb(float.infinity) == int.max);
+    assert(ilogb(-double.infinity) == int.max);
+    assert(ilogb(2.0) == 1);
+    assert(ilogb(2.0001) == 1);
+    assert(ilogb(1.9999) == 0);
+    assert(ilogb(0.5) == -1);
+    assert(ilogb(123.123) == 6);
+    assert(ilogb(-123.123) == 6);
+    assert(ilogb(0.123) == -4);
+    assert(ilogb(-double.min_normal) == -1022);
+    assert(ilogb(-float.min_normal) == -126);
+    // subnormals
+    assert(ilogb(nextUp(-double.min_normal)) == -1023);
+    assert(ilogb(nextUp(-0.0)) == -1074);
+    assert(ilogb(nextUp(-float.min_normal)) == -127);
+    assert(ilogb(nextUp(-0.0F)) == -149);
+    static if (floatTraits!(real).realFormat == RealFormat.ieeeExtended) {
+        assert(ilogb(-real.min_normal) == -16382);
+        assert(ilogb(nextUp(-real.min_normal)) == -16383);
+        assert(ilogb(nextUp(-0.0L)) == -16445);
+    } else static if (floatTraits!(real).realFormat == RealFormat.ieeeDouble) {
+        assert(ilogb(-real.min_normal) == -1022);
+        assert(ilogb(nextUp(-real.min_normal)) == -1023);
+        assert(ilogb(nextUp(-0.0L)) == -1074);
+    }
+}
 
 /*******************************************
  * Compute n * 2$(SUPERSCRIPT exp)
