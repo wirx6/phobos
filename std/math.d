@@ -4275,6 +4275,18 @@ private:
             INVALID_MASK   = 0x04
         }
     }
+    else version (AArch64)
+    {
+        // AArch64 FPSR is a 32bit register
+        enum : int
+        {
+            INEXACT_MASK   = 0x0010,
+            UNDERFLOW_MASK = 0x0008,
+            OVERFLOW_MASK  = 0x0004,
+            DIVBYZERO_MASK = 0x0002,
+            INVALID_MASK   = 0x0001
+        }
+    }
     else version (ARM)
     {
         // ARM FPSCR is a 32bit register
@@ -4323,6 +4335,10 @@ private:
             else version (ARM_SoftFloat)
             {
                 return 0;
+            }
+            else version (AArch64)
+            {
+                return __asm!uint("mrs $0, FPSR; and $0, $0, #0x1F", "=r");
             }
             else version (ARM)
             {
@@ -4384,6 +4400,12 @@ private:
             else version (MIPS_Any)
             {
                 __asm("cfc1 $0, 31 ; andi $0, $0, 0xFFFFFF80 ; ctc1 $0, 31", "~r");
+            }
+            else version (AArch64)
+            {
+                uint old = getIeeeFlags();
+                old &= ~0b11111; // http://infocenter.arm.com/help/topic/com.arm.doc.ddi0408i/Chdfifdc.html
+                __asm("msr FPSR, $0", "r", old);
             }
             else version (ARM_SoftFloat)
             {
@@ -4484,6 +4506,10 @@ else version(MIPS_Any)
 {
     version = IeeeFlagsSupport;
 }
+else version (AArch64)
+{
+    version = IeeeFlagsSupport;
+}
 else version (ARM)
 {
     version = IeeeFlagsSupport;
@@ -4554,7 +4580,17 @@ struct FloatingPointControl
     /** IEEE rounding modes.
      * The default mode is roundToNearest.
      */
-    version(ARM)
+    version(AArch64)
+    {
+        enum : RoundingMode
+        {
+            roundToNearest = 0x000000,
+            roundDown      = 0x800000,
+            roundUp        = 0x400000,
+            roundToZero    = 0xC00000
+        }
+    }
+    else version(ARM)
     {
         enum : RoundingMode
         {
@@ -4598,7 +4634,23 @@ struct FloatingPointControl
     /** IEEE hardware exceptions.
      *  By default, all exceptions are masked (disabled).
      */
-    version(ARM)
+    version(AArch64)
+    {
+        enum : uint
+        {
+            inexactException      = 0x1000,
+            underflowException    = 0x0800,
+            overflowException     = 0x0400,
+            divByZeroException    = 0x0200,
+            invalidException      = 0x0100,
+            /// Severe = The overflow, division by zero, and invalid exceptions.
+            severeExceptions   = overflowException | divByZeroException
+                                 | invalidException,
+            allExceptions      = severeExceptions | underflowException
+                                 | inexactException,
+        }
+    }
+    else version(ARM)
     {
         enum : uint
         {
@@ -4666,7 +4718,12 @@ struct FloatingPointControl
     }
 
 private:
-    version(ARM)
+    version(AArch64)
+    {
+        enum uint EXCEPTION_MASK = 0x1F00;
+        enum uint ROUNDING_MASK = 0xC00000;
+    }
+    else version(ARM)
     {
         enum uint EXCEPTION_MASK = 0x9F00;
         enum uint ROUNDING_MASK = 0xC00000;
@@ -4704,6 +4761,16 @@ public:
             return true;
         else version(MIPS_Any)
             return true;
+        else version(AArch64)
+        {
+            auto oldState = getControlState();
+            // If exceptions are not supported, we set the bit but read it back as zero
+            // https://sourceware.org/git/?p=glibc.git;a=blob;f=sysdeps/aarch64/fpu/feenablxcpth.c
+            setControlState(oldState | (divByZeroException & EXCEPTION_MASK));
+            bool result = (getControlState() & EXCEPTION_MASK) != 0;
+            setControlState(oldState);
+            return result;
+        }
         else version(ARM)
         {
             auto oldState = getControlState();
@@ -4776,7 +4843,11 @@ private:
 
     bool initialized = false;
 
-    version(ARM)
+    version(AArch64)
+    {
+        alias ControlState = uint;
+    }
+    else version(ARM)
     {
         alias ControlState = uint;
     }
@@ -4818,6 +4889,13 @@ private:
             else version (MIPS_Any)
             {
                 __asm("cfc1 $0, 31 ; andi $0, $0, 0xFFFFF07F ; ctc1 $0, 31", "~r");
+            }
+            else version (AArch64)
+            {
+                // https://sourceware.org/git/?p=glibc.git;a=blob;f=sysdeps/aarch64/fpu/fclrexcpt.c
+                ControlState old = getControlState();
+                old &= ~0b11111;
+                __asm("msr FPCR, $0", "r", old);
             }
             else version (ARM_SoftFloat)
             {
@@ -4865,6 +4943,10 @@ private:
             else version (MIPS_Any)
             {
                 cont = __asm("cfc1 $0, 31", "=r");
+            }
+            else version (AArch64)
+            {
+                cont = __asm!ControlState("mrs $0, FPCR", "=r");
             }
             else version (ARM_SoftFloat)
             {
@@ -4926,6 +5008,10 @@ private:
             else version (MIPS_Any)
             {
                 __asm("ctc1 $0, 31", "r", newState);
+            }
+            else version (AArch64)
+            {
+                __asm("msr FPCR, $0", "r", newState);
             }
             else version (ARM_SoftFloat)
             {
