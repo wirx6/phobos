@@ -3977,7 +3977,7 @@ private:
             }
             else version (MIPS_Any)
             {
-                return __asm!uint("cfc1 $0, 31", "=r");
+                return __asm!uint("cfc1 $0, $$31", "=r");
             }
             else version (ARM_SoftFloat)
             {
@@ -4042,7 +4042,7 @@ private:
             }
             else version (MIPS_Any)
             {
-                __asm!uint("cfc1 $0, 31 ; andi $0, $0, 0xFFFFFF80 ; ctc1 $0, 31", "=r");
+                cast(void) __asm!uint("cfc1 $0, $$31 ; andi $0, $0, 0xFFFFFF80 ; ctc1 $0, $$31", "=r");
             }
             else version (ARM_SoftFloat)
             {
@@ -4440,7 +4440,7 @@ private:
             }
             else version (MIPS_Any)
             {
-                __asm!uint("cfc1 $0, 31 ; andi $0, $0, 0xFFFFF07F ; ctc1 $0, 31", "=r");
+                cast(void) __asm!uint("cfc1 $0, $$31 ; andi $0, $0, 0xFFFFF07F ; ctc1 $0, $$31", "=r");
             }
             else version (ARM_SoftFloat)
             {
@@ -4487,7 +4487,7 @@ private:
             }
             else version (MIPS_Any)
             {
-                cont = __asm!uint("cfc1 $0, 31", "=r");
+                cont = __asm!uint("cfc1 $0, $$31", "=r");
             }
             else version (ARM_SoftFloat)
             {
@@ -4548,7 +4548,7 @@ private:
             }
             else version (MIPS_Any)
             {
-                __asm("ctc1 $0, 31", "r", newState);
+                __asm("ctc1 $0, $$31", "r", newState);
             }
             else version (ARM_SoftFloat)
             {
