@@ -4041,7 +4041,7 @@ private:
             }
             else version (MIPS_Any)
             {
-                __asm("cfc1 $0, 31 ; andi $0, $0, 0xFFFFFF80 ; ctc1 $0, 31", "~r");
+                __asm!uint("cfc1 $0, 31 ; andi $0, $0, 0xFFFFFF80 ; ctc1 $0, 31", "=r");
             }
             else version (ARM_SoftFloat)
             {
@@ -4439,7 +4439,7 @@ private:
             }
             else version (MIPS_Any)
             {
-                __asm("cfc1 $0, 31 ; andi $0, $0, 0xFFFFF07F ; ctc1 $0, 31", "~r");
+                __asm!uint("cfc1 $0, 31 ; andi $0, $0, 0xFFFFF07F ; ctc1 $0, 31", "=r");
             }
             else version (ARM_SoftFloat)
             {
@@ -4486,7 +4486,7 @@ private:
             }
             else version (MIPS_Any)
             {
-                cont = __asm("cfc1 $0, 31", "=r");
+                cont = __asm!uint("cfc1 $0, 31", "=r");
             }
             else version (ARM_SoftFloat)
             {
