@@ -2225,6 +2225,11 @@ unittest
 
         version (IeeeFlagsSupport)
         {
+          // LDC specific: only test over-/underflow bits if real is 80 bits;
+          // neither the official non-asm D implementation nor the llvm.exp.f64
+          // intrinsic on Win64 (and probably other targets) set these bits
+          version (LDC) static if (real.mant_dig == 64)
+          {
             // Check the overflow bit
             if (x == real.infinity)
             {
@@ -2236,6 +2241,7 @@ unittest
                 assert(!f.overflow);
             // Check the underflow bit
             assert(f.underflow == (fabs(x) < real.min_normal));
+          }
             // Invalid and div by zero shouldn't be affected.
             assert(!f.invalid);
             assert(!f.divByZero);
