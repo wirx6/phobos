@@ -2229,7 +2229,8 @@ public:
                 set.length *= 2;
                 set.length = set.capacity;
             }
-            fds[count++] = s;
+            ++count;
+            fds[$-1] = s;
         }
         else
         {
