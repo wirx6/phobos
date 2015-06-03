@@ -3981,7 +3981,7 @@ private:
             }
             else version (ARM_SoftFloat)
             {
-                return 0;
+                cont = 0;
             }
             else version (ARM)
             {
@@ -4049,9 +4049,11 @@ private:
             }
             else version (ARM)
             {
-                uint old = getIeeeFlags();
-                old &= ~0b11111; // http://infocenter.arm.com/help/topic/com.arm.doc.ddi0408i/Chdfifdc.html
-                __asm("vmsr FPSCR, $0", "r", old);
+                // http://infocenter.arm.com/help/topic/com.arm.doc.ddi0408i/Chdfifdc.html
+                cast(void) __asm!uint
+                    ("vmrs $0, fpscr;"
+                     "bic $0, #0x1f;"
+                     "vmsr fpscr, $0", "=r");
             }
             else
                 assert(0, "Not yet supported");
