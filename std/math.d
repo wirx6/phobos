@@ -3939,11 +3939,11 @@ private:
     {
         enum : int
         {
-            INEXACT_MASK   = 0x00001000,
-            UNDERFLOW_MASK = 0x00000800,
-            OVERFLOW_MASK  = 0x00000400,
-            DIVBYZERO_MASK = 0x00000200,
-            INVALID_MASK   = 0x00000100
+            INEXACT_MASK   = 0x10,
+            UNDERFLOW_MASK = 0x08,
+            OVERFLOW_MASK  = 0x04,
+            DIVBYZERO_MASK = 0x02,
+            INVALID_MASK   = 0x01
         }
     }
     else version(SPARC)
@@ -3981,7 +3981,7 @@ private:
             }
             else version (ARM_SoftFloat)
             {
-                return 0;
+                cont = 0;
             }
             else version (ARM)
             {
@@ -4049,9 +4049,11 @@ private:
             }
             else version (ARM)
             {
-                uint old = getIeeeFlags();
-                old &= ~0b11111; // http://infocenter.arm.com/help/topic/com.arm.doc.ddi0408i/Chdfifdc.html
-                __asm("vmsr FPSCR, $0", "r", old);
+                // http://infocenter.arm.com/help/topic/com.arm.doc.ddi0408i/Chdfifdc.html
+                cast(void) __asm!uint
+                    ("vmrs $0, fpscr;"
+                     "bic $0, #0x1f;"
+                     "vmsr fpscr, $0", "=r");
             }
             else
                 assert(0, "Not yet supported");
@@ -4182,8 +4184,8 @@ struct FloatingPointControl
         enum : RoundingMode
         {
             roundToNearest = 0x000000,
-            roundDown      = 0x400000,
-            roundUp        = 0x800000,
+            roundDown      = 0x800000,
+            roundUp        = 0x400000,
             roundToZero    = 0xC00000
         }
     }
