@@ -4399,7 +4399,7 @@ private:
             }
             else version (ARM_SoftFloat)
             {
-                cont = 0;
+                return 0;
             }
             else version (AArch64)
             {
