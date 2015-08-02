@@ -2638,7 +2638,8 @@ public:
                 }
             }
 
-            tasks[] = RTask.init;
+            foreach (ref t; tasks[])
+                emplaceRef(t, RTask());
 
             // Hack to take the address of a nested function w/o
             // making a closure.
