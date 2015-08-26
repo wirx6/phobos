@@ -17,7 +17,7 @@
 #
 # make install => copies library to /usr/lib
 #
-# make unittest/std/somemodule.d => only builds and unittests std.somemodule
+# make std/somemodule.test => only builds and unittests std.somemodule
 #
 
 ################################################################################
@@ -28,46 +28,7 @@
 
 QUIET:=@
 
-OS:=
-uname_S:=$(shell uname -s)
-ifeq (Darwin,$(uname_S))
-    OS:=osx
-endif
-ifeq (Linux,$(uname_S))
-    OS:=linux
-endif
-ifeq (FreeBSD,$(uname_S))
-    OS:=freebsd
-endif
-ifeq (OpenBSD,$(uname_S))
-    OS:=openbsd
-endif
-ifeq (Solaris,$(uname_S))
-    OS:=solaris
-endif
-ifeq (SunOS,$(uname_S))
-    OS:=solaris
-endif
-ifeq (,$(OS))
-    $(error Unrecognized or unsupported OS for uname: $(uname_S))
-endif
-
-ifeq (,$(MODEL))
-    ifeq ($(OS),solaris)
-        uname_M:=$(shell isainfo -n)
-    else
-        uname_M:=$(shell uname -m)
-    endif
-    ifneq (,$(findstring $(uname_M),x86_64 amd64))
-        MODEL:=64
-    endif
-    ifneq (,$(findstring $(uname_M),i386 i586 i686))
-        MODEL:=32
-    endif
-    ifeq (,$(MODEL))
-        $(error Cannot figure 32/64 model from uname -m: $(uname_M))
-    endif
-endif
+include osmodel.mak
 
 # Default to a release built, override with BUILD=debug
 ifeq (,$(BUILD))
@@ -98,10 +59,10 @@ DOC_OUTPUT_DIR = $(WEBSITE_DIR)/phobos-prerelease
 BIGDOC_OUTPUT_DIR = /tmp
 SRC_DOCUMENTABLES = index.d $(addsuffix .d,$(STD_MODULES) \
 	$(EXTRA_DOCUMENTABLES))
-STDDOC = $(DOCSRC)/html.ddoc $(DOCSRC)/dlang.org.ddoc $(DOCSRC)/std_navbar-prerelease.ddoc $(DOCSRC)/std.ddoc $(DOCSRC)/macros.ddoc
+STDDOC = $(DOCSRC)/html.ddoc $(DOCSRC)/dlang.org.ddoc $(DOCSRC)/std_navbar-prerelease.ddoc $(DOCSRC)/std.ddoc $(DOCSRC)/macros.ddoc $(DOCSRC)/.generated/modlist-prerelease.ddoc
 BIGSTDDOC = $(DOCSRC)/std_consolidated.ddoc $(DOCSRC)/macros.ddoc
 # Set DDOC, the documentation generator
-DDOC=$(DMD) -conf= -m$(MODEL) -w -c -o- -version=StdDdoc \
+DDOC=$(DMD) -conf= $(MODEL_FLAG) -w -c -o- -version=StdDdoc \
 	-I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS)
 
 # Set DRUNTIME name and full path
@@ -133,7 +94,7 @@ endif
 # Set CFLAGS
 CFLAGS=
 ifneq (,$(filter cc% gcc% clang% icc% egcc%, $(CC)))
-	CFLAGS += -m$(MODEL) -fPIC
+	CFLAGS += $(MODEL_FLAG) -fPIC -DHAVE_UNISTD_H
 	ifeq ($(BUILD),debug)
 		CFLAGS += -g
 	else
@@ -142,7 +103,7 @@ ifneq (,$(filter cc% gcc% clang% icc% egcc%, $(CC)))
 endif
 
 # Set DFLAGS
-DFLAGS=-conf= -I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS) -w -dip25 -m$(MODEL) $(PIC)
+DFLAGS=-conf= -I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS) -w -dip25 $(MODEL_FLAG) $(PIC)
 ifeq ($(BUILD),debug)
 	DFLAGS += -g -debug
 else
@@ -201,7 +162,7 @@ STD_MODULES = $(addprefix std/, \
   encoding exception \
   $(addprefix experimental/logger/, core filelogger nulllogger multilogger) \
   file format functional getopt json math mathspecial \
-  metastrings mmfile net/isemail net/curl numeric outbuffer parallelism path \
+  meta metastrings mmfile net/isemail net/curl numeric outbuffer parallelism path \
   process random \
   $(addprefix range/, primitives interfaces) \
   $(addprefix regex/, $(addprefix internal/,generator ir parser backtracking \
@@ -224,9 +185,9 @@ else
 endif
 
 # Other D modules that aren't under std/
-EXTRA_DOCUMENTABLES += $(addprefix etc/c/,curl sqlite3 zlib) $(addprefix	\
-std/c/, fenv locale math process stdarg stddef stdio stdlib string	\
-time wcharh)
+EXTRA_DOCUMENTABLES += $(addprefix etc/c/,curl odbc/sql odbc/sqlext \
+  odbc/sqltypes odbc/sqlucode sqlite3 zlib) $(addprefix std/c/,fenv locale \
+  math process stdarg stddef stdio stdlib string time wcharh)
 EXTRA_MODULES += $(EXTRA_DOCUMENTABLES) $(addprefix			\
 	std/internal/digest/, sha_SSSE3 ) $(addprefix \
 	std/internal/math/, biguintcore biguintnoasm biguintx86	\
@@ -283,11 +244,11 @@ install :
 
 .PHONY : unittest
 ifeq (1,$(BUILD_WAS_SPECIFIED))
-unittest : $(addsuffix .d,$(addprefix unittest/,$(D_MODULES)))
+unittest : $(addsuffix .run,$(addprefix unittest/,$(D_MODULES)))
 else
 unittest : unittest-debug unittest-release
 unittest-%:
-	$(MAKE) -f $(MAKEFILE) $(MAKEFLAGS) unittest OS=$(OS) MODEL=$(MODEL) DMD=$(DMD) BUILD=$*
+	$(MAKE) -f $(MAKEFILE) unittest OS=$(OS) MODEL=$(MODEL) DMD=$(DMD) BUILD=$*
 endif
 
 depend: $(addprefix $(ROOT)/unittest/,$(addsuffix .deps,$(D_MODULES)))
@@ -335,6 +296,10 @@ $(ROOT_OF_THEM_ALL)/osx/release/libphobos2.a:
 		-create -output $@
 endif
 
+################################################################################
+# Unittests
+################################################################################
+
 $(addprefix $(ROOT)/unittest/,$(DISABLED_TESTS)) :
 	@echo Testing $@ - disabled
 
@@ -372,8 +337,26 @@ endif
 # macro that returns the module name given the src path
 moduleName=$(subst /,.,$(1))
 
-unittest/%.d : $(ROOT)/unittest/test_runner
+# target for batch unittests (using shared phobos library and test_runner)
+unittest/%.run : $(ROOT)/unittest/test_runner
 	$(QUIET)$(RUN) $< $(call moduleName,$*)
+
+# Target for quickly running a single unittest (using static phobos library).
+# For example: "make std/algorithm/mutation.test"
+# The mktemp business is needed so .o files don't clash in concurrent unittesting.
+%.test : %.d $(LIB)
+	T=`mktemp -d /tmp/.dmd-run-test.XXXXXX` && \
+	  $(DMD) -od$$T $(DFLAGS) -main -unittest $(LIB) -defaultlib= -debuglib= -L-lcurl -cov -run $< && \
+	  rm -rf $$T
+
+# Target for quickly unittesting all modules and packages within a package,
+# transitively. For example: "make std/algorithm.test"
+%.test : $(LIB)
+	$(MAKE) -f $(MAKEFILE) $(addsuffix .test,$(patsubst %.d,%,$(wildcard $*/*)))
+
+################################################################################
+# More stuff
+################################################################################
 
 # Disable implicit rule
 %$(DOTEXE) : %$(DOTOBJ)
@@ -386,7 +369,8 @@ clean :
 	rm -rf $(ROOT_OF_THEM_ALL) $(ZIPFILE) $(DOC_OUTPUT_DIR)
 
 zip :
-	zip $(ZIPFILE) $(MAKEFILE) $(ALL_D_FILES) $(ALL_C_FILES) win32.mak win64.mak
+	zip $(ZIPFILE) $(MAKEFILE) $(ALL_D_FILES) $(ALL_C_FILES) index.d win32.mak win64.mak osmodel.mak \
+	$(addsuffix /package.d,$(STD_PACKAGES))
 
 install2 : all
 	$(eval lib_dir=$(if $(filter $(OS),osx), lib, lib$(MODEL)))
@@ -460,8 +444,16 @@ rsync-prerelease : html
 html_consolidated :
 	$(DDOC) -Df$(DOCSRC)/std_consolidated_header.html $(DOCSRC)/std_consolidated_header.dd
 	$(DDOC) -Df$(DOCSRC)/std_consolidated_footer.html $(DOCSRC)/std_consolidated_footer.dd
-	$(MAKE) DOC_OUTPUT_DIR=$(BIGDOC_OUTPUT_DIR) STDDOC=$(BIGSTDDOC) html -j 8
+	$(MAKE) -f $(MAKEFILE) DOC_OUTPUT_DIR=$(BIGDOC_OUTPUT_DIR) STDDOC=$(BIGSTDDOC) html -j 8
 	cat $(DOCSRC)/std_consolidated_header.html $(BIGHTMLS)	\
 	$(DOCSRC)/std_consolidated_footer.html > $(DOC_OUTPUT_DIR)/std_consolidated.html
 
 #############################
+
+.PHONY : auto-tester-build
+auto-tester-build: all
+
+.PHONY : auto-tester-test
+auto-tester-test: unittest
+
+.DELETE_ON_ERROR: # GNU Make directive (delete output files on error)

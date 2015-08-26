@@ -34,11 +34,22 @@
  * {
  *     auto text = "Joe,Carpenter,300000\nFred,Blacksmith,400000\r\n";
  *
- *     foreach(record; csvReader!(Tuple!(string,string,int))(text))
+ *     foreach(record; csvReader!(Tuple!(string, string, int))(text))
  *     {
  *         writefln("%s works as a %s and earns $%d per year",
  *                  record[0], record[1], record[2]);
  *     }
+ *
+ *     // To read the same string from the file "filename.csv":
+ *
+ *     auto file = File("filename.csv", "r");
+ *     foreach(record;
+ *         file.byLine.joiner("\n").csvReader!(Tuple!(string, string, int)))
+ *     {
+ *         writefln("%s works as a %s and earns $%d per year",
+ *                  record[0], record[1], record[2]);
+ *     }
+ }
  * }
  * -------
  *
@@ -298,10 +309,11 @@ enum Malformed
  * -------
  *
  * Returns:
- *        An input range R as defined by $(XREF range, isInputRange). When $(D
- *        Contents) is a struct, class, or an associative array, the element
- *        type of R is $(D Contents), otherwise the element type of R is itself
- *        a range with element type $(D Contents).
+ *        An input range R as defined by
+ *        $(XREF_PACK range,primitives,isInputRange). When $(D Contents) is a
+ *        struct, class, or an associative array, the element type of R is
+ *        $(D Contents), otherwise the element type of R is itself a range with
+ *        element type $(D Contents).
  *
  * Throws:
  *       $(LREF CSVException) When a quote is found in an unquoted field,
@@ -372,10 +384,11 @@ auto csvReader(Contents = string,Malformed ErrorLevel = Malformed.throwException
  * -------
  *
  * Returns:
- *        An input range R as defined by $(XREF range, isInputRange). When $(D
- *        Contents) is a struct, class, or an associative array, the element
- *        type of R is $(D Contents), otherwise the element type of R is itself
- *        a range with element type $(D Contents).
+ *        An input range R as defined by
+ *        $(XREF_PACK range,primitives,isInputRange). When $(D Contents) is a
+ *        struct, class, or an associative array, the element type of R is
+ *        $(D Contents), otherwise the element type of R is itself a range with
+ *        element type $(D Contents).
  *
  *        The returned range provides a header field for accessing the header
  *        from the input in array form.
@@ -749,7 +762,7 @@ unittest
 
     foreach(record; csvReader(ir, cast(string[])null))
         foreach(cell; record) {}
-    foreach(record; csvReader!(Tuple!(string,string,int))
+    foreach(record; csvReader!(Tuple!(string, string, int))
             (ir,cast(string[])null)) {}
     foreach(record; csvReader!(string[string])
             (ir,cast(string[])null)) {}
@@ -937,7 +950,8 @@ public:
     }
 
     /**
-     * Part of an input range as defined by $(XREF range, isInputRange).
+     * Part of an input range as defined by
+     * $(XREF_PACK range,primitives,isInputRange).
      *
      * Returns:
      *      If $(D Contents) is a struct, will be filled with record data.
@@ -968,7 +982,8 @@ public:
     }
 
     /**
-     * Part of an input range as defined by $(XREF range, isInputRange).
+     * Part of an input range as defined by
+     * $(XREF_PACK range,primitives,isInputRange).
      */
     @property bool empty() @safe @nogc pure nothrow const
     {
@@ -976,7 +991,8 @@ public:
     }
 
     /**
-     * Part of an input range as defined by $(XREF range, isInputRange).
+     * Part of an input range as defined by
+     * $(XREF_PACK range,primitives,isInputRange).
      *
      * Throws:
      *       $(LREF CSVException) When a quote is found in an unquoted field,
@@ -1168,7 +1184,8 @@ public:
     }
 
     /**
-     * Part of an input range as defined by $(XREF range, isInputRange).
+     * Part of an input range as defined by
+     * $(XREF_PACK range,primitives,isInputRange).
      */
     @property Contents front() @safe pure
     {
@@ -1177,7 +1194,8 @@ public:
     }
 
     /**
-     * Part of an input range as defined by $(XREF range, isInputRange).
+     * Part of an input range as defined by
+     * $(XREF_PACK range,primitives,isInputRange).
      */
     @property bool empty() @safe pure nothrow @nogc const
     {
@@ -1201,7 +1219,8 @@ public:
 
 
     /**
-     * Part of an input range as defined by $(XREF range, isInputRange).
+     * Part of an input range as defined by
+     * $(XREF_PACK range,primitives,isInputRange).
      *
      * Throws:
      *       $(LREF CSVException) When a quote is found in an unquoted field,
