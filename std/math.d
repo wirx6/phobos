@@ -2317,14 +2317,11 @@ unittest
 
         version (IeeeFlagsSupport)
         {
-<<<<<<< HEAD
           // LDC specific: only test over-/underflow bits if real is 80 bits;
           // neither the official non-asm D implementation nor the llvm.exp.f64
           // intrinsic on Win64 (and probably other targets) set these bits
           version (LDC) static if (real.mant_dig == 64)
           {
-=======
->>>>>>> v2.068.0
             // Check the overflow bit
             if (x == real.infinity)
             {
@@ -2336,10 +2333,7 @@ unittest
                 assert(!f.overflow);
             // Check the underflow bit
             assert(f.underflow == (fabs(x) < real.min_normal));
-<<<<<<< HEAD
           }
-=======
->>>>>>> v2.068.0
             // Invalid and div by zero shouldn't be affected.
             assert(!f.invalid);
             assert(!f.divByZero);
@@ -2786,7 +2780,6 @@ int ilogb(T)(const T x) @trusted nothrow @nogc
     {
         if (ex)     // If exponent is non-zero
         {
-<<<<<<< HEAD
             if (ex == F.EXPMASK)
             {   // infinity or NaN
                 if (vl[MANTISSA_LSB] | ( vl[MANTISSA_MSB] & 0x0000_FFFF_FFFF_FFFF))  // NaN
@@ -2812,33 +2805,6 @@ int ilogb(T)(const T x) @trusted nothrow @nogc
                 return ex - F.EXPBIAS - T.mant_dig + 1 + bsr_ulong(msb) + 64;
             else
                 return ex - F.EXPBIAS - T.mant_dig + 1 + bsr_ulong(lsb);
-=======
-            fld     real ptr [x]        ;
-            fxam                        ;
-            fstsw   AX                  ;
-            and     AH,0x45             ;
-            cmp     AH,0x40             ;
-            jz      Lzeronan            ;
-            cmp     AH,5                ;
-            jz      Linfinity           ;
-            cmp     AH,1                ;
-            jz      Lzeronan            ;
-            fxtract                     ;
-            fstp    ST(0)               ;
-            fistp   res                 ;
-            mov     EAX,res             ;
-            jmp     Ldone               ;
-
-        Lzeronan:
-            mov     EAX,0x80000000      ;
-            fstp    ST(0)               ;
-            jmp     Ldone               ;
-
-        Linfinity:
-            mov     EAX,0x7FFFFFFF      ;
-            fstp    ST(0)               ;
-        Ldone: ;
->>>>>>> v2.068.0
         }
     }
     else static if (F.realFormat == RealFormat.ieeeDouble)
@@ -2910,23 +2876,10 @@ alias FP_ILOGBNAN = core.stdc.math.FP_ILOGBNAN;
 {
     assert(ilogb(real.nan) == FP_ILOGBNAN);
     assert(ilogb(-real.nan) == FP_ILOGBNAN);
-<<<<<<< HEAD
-    assert(ilogb(-float.nan) == FP_ILOGBNAN);
-    assert(ilogb(double.nan) == FP_ILOGBNAN);
-    assert(ilogb(0.0) == FP_ILOGB0);
-    assert(ilogb(-0.0) == FP_ILOGB0);
-    assert(ilogb(-0.0F) == FP_ILOGB0);
-    assert(ilogb(-0.0L) == FP_ILOGB0);
-    assert(ilogb(real.infinity) == int.max);
-    assert(ilogb(-real.infinity) == int.max);
-    assert(ilogb(float.infinity) == int.max);
-    assert(ilogb(-double.infinity) == int.max);
-=======
     assert(ilogb(0.0) == FP_ILOGB0);
     assert(ilogb(-0.0) == FP_ILOGB0);
     assert(ilogb(real.infinity) == int.max);
     assert(ilogb(-real.infinity) == int.max);
->>>>>>> v2.068.0
     assert(ilogb(2.0) == 1);
     assert(ilogb(2.0001) == 1);
     assert(ilogb(1.9999) == 0);
@@ -3692,7 +3645,6 @@ real cbrt(real x) @trusted nothrow @nogc
  *      $(TR $(TD $(PLUSMN)$(INFIN)) $(TD +$(INFIN)) )
  *      )
  */
-<<<<<<< HEAD
 static if (__traits(compiles, llvm_fabs(3.14L)))
 {
     real fabs(real x) @safe pure nothrow @nogc { return llvm_fabs(x); }
@@ -3708,18 +3660,15 @@ version(LDC)
 }
 else
 {
-    real fabs(real x) @safe pure nothrow @nogc;      /* intrinsic */
-}
-}
-=======
 real fabs(real x) @safe pure nothrow @nogc;      /* intrinsic */
+}
+}
 //FIXME
 ///ditto
 double fabs(double x) @safe pure nothrow @nogc { return fabs(cast(real)x); }
 //FIXME
 ///ditto
 float fabs(float x) @safe pure nothrow @nogc { return fabs(cast(real)x); }
->>>>>>> v2.068.0
 
 
 /***********************************************************************
@@ -4127,7 +4076,6 @@ real nearbyint(real x) @trusted nothrow @nogc
  * $(B nearbyint) performs
  * the same operation, but does not set the FE_INEXACT exception.
  */
-<<<<<<< HEAD
 version(LDC)
 {
     static if (__traits(compiles, llvm_rint(3.14L)))
@@ -4151,19 +4099,14 @@ version(LDC)
 }
 else
 {
-
 real rint(real x) @safe pure nothrow @nogc;      /* intrinsic */
-
 }
-=======
-real rint(real x) @safe pure nothrow @nogc;      /* intrinsic */
 //FIXME
 ///ditto
 double rint(double x) @safe pure nothrow @nogc { return rint(cast(real)x); }
 //FIXME
 ///ditto
 float rint(float x) @safe pure nothrow @nogc { return rint(cast(real)x); }
->>>>>>> v2.068.0
 
 /***************************************
  * Rounds x to the nearest integer value, using the current rounding
@@ -4841,7 +4784,6 @@ struct FloatingPointControl
             roundToNearest = 0x000000,
             roundDown      = 0x800000,
             roundUp        = 0x400000,
-<<<<<<< HEAD
             roundToZero    = 0xC00000
         }
     }
@@ -4852,8 +4794,6 @@ struct FloatingPointControl
             roundToNearest = 0x000000,
             roundDown      = 0x800000,
             roundUp        = 0x400000,
-=======
->>>>>>> v2.068.0
             roundToZero    = 0xC00000
         }
     }
@@ -7266,15 +7206,11 @@ private real polyImpl(real x, in real[] A) @trusted pure nothrow @nogc
 {
     version (INLINE_POLY)
     {
-<<<<<<< HEAD
-        version (RealPacked)
-=======
         if(__ctfe)
         {
             return polyImplBase(x, A);
         }
-        version (Windows)
->>>>>>> v2.068.0
+        version (RealPacked)
         {
         // BUG: This code assumes a frame pointer in EBP.
             asm pure nothrow @nogc // assembler by W. Bright
