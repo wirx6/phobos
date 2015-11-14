@@ -135,9 +135,9 @@ version(LDC)
     import ldc.intrinsics;
     import ldc.llvmasm;
 
-    version(Win64) version = Win64_REAL_IS_DOUBLE;
+    version(CRuntime_Microsoft) version = LDC_MSVCRT;
 
-    version(Win64_REAL_IS_DOUBLE) {}
+    version(LDC_MSVCRT) {}
     else
     {
         version(X86)    version = INLINE_YL2X;
@@ -168,7 +168,7 @@ else version(D_InlineAsm_X86_64)
 }
 
 // define InlineAsm*_X87 versions if real is defined as 80-bit x87
-version(Win64_REAL_IS_DOUBLE) {}
+version(LDC_MSVCRT) {}
 else
 {
     version (D_InlineAsm_X86)     version = InlineAsm_X86_X87;
