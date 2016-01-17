@@ -80,6 +80,18 @@ version (CRuntime_Bionic)
     version = NO_GETDELIM;
 }
 
+// Character type used for operating system filesystem APIs
+version (Windows)
+{
+    private alias FSChar = wchar;
+}
+else version (Posix)
+{
+    private alias FSChar = char;
+}
+else
+    static assert(0);
+
 version(Windows)
 {
     // core.stdc.stdio.fopen expects file names to be
@@ -396,18 +408,10 @@ manner, such that as soon as the last $(D File) variable bound to a
 given $(D FILE*) goes out of scope, the underlying $(D FILE*) is
 automatically closed.
 
-Bugs:
-$(D File) expects file names to be encoded in $(B CP_ACP) on $(I Windows)
-instead of UTF-8 ($(BUGZILLA 7648)) thus must not be used in $(I Windows)
-or cross-platform applications other than with an immediate ASCII string as
-a file name to prevent accidental changes to result in incorrect behavior.
-One can use $(XREF file, read)/$(XREF file, write)/$(XREF stream, _File)
-instead.
-
 Example:
 ----
 // test.d
-void main(string args[])
+void main(string[] args)
 {
     auto f = File("test.txt", "w"); // open for writing
     f.write("Hello");
@@ -461,16 +465,20 @@ struct File
     }
 
 /**
-Constructor taking the name of the file to open and the open mode
-(with the same semantics as in the C standard library $(WEB
-cplusplus.com/reference/clibrary/cstdio/fopen.html, fopen)
-function).
+Constructor taking the name of the file to open and the open mode.
 
 Copying one $(D File) object to another results in the two $(D File)
 objects referring to the same underlying file.
 
 The destructor automatically closes the file as soon as no $(D File)
 object refers to it anymore.
+
+Params:
+    name = range or string representing the file _name
+    stdioOpenMode = range or string represting the open mode
+        (with the same semantics as in the C standard library $(WEB
+        cplusplus.com/reference/clibrary/cstdio/fopen.html, fopen)
+        function)
 
 Throws: $(D ErrnoException) if the file could not be opened.
  */
@@ -497,6 +505,33 @@ Throws: $(D ErrnoException) if the file could not be opened.
             if (append && !update)
                 seek(size);
         }
+    }
+
+    /// ditto
+    this(R1, R2)(R1 name)
+        if (isInputRange!R1 && isSomeChar!(ElementEncodingType!R1))
+    {
+        import std.conv : to;
+        this(name.to!string, "rb");
+    }
+
+    /// ditto
+    this(R1, R2)(R1 name, R2 mode)
+        if (isInputRange!R1 && isSomeChar!(ElementEncodingType!R1) &&
+            isInputRange!R2 && isSomeChar!(ElementEncodingType!R2))
+    {
+        import std.conv : to;
+        this(name.to!string, mode.to!string);
+    }
+
+    @safe unittest
+    {
+        static import std.file;
+        import std.utf : byChar;
+        auto deleteme = testFilename();
+        auto f = File(deleteme.byChar, "w".byChar);
+        f.close();
+        std.file.remove(deleteme);
     }
 
     ~this() @safe
@@ -571,6 +606,7 @@ Throws: $(D ErrnoException) in case of error.
         import std.internal.cstring : tempCString;
         import std.exception : errnoEnforce;
 
+        auto modez = stdioOpenmode.tempCString();
         detach();
 
         version (DIGITAL_MARS_STDIO)
@@ -580,7 +616,7 @@ Throws: $(D ErrnoException) in case of error.
             // new fdopen'd file to retain the given file descriptor's
             // position.
             import core.stdc.stdio : fopen;
-            auto fp = fopen("NUL", stdioOpenmode.tempCString());
+            auto fp = fopen("NUL", modez);
             errnoEnforce(fp, "Cannot open placeholder NUL stream");
             FLOCK(fp);
             auto iob = cast(_iobuf*)fp;
@@ -592,11 +628,11 @@ Throws: $(D ErrnoException) in case of error.
         else
         {
             version (Windows) // MSVCRT
-                auto fp = _fdopen(fd, stdioOpenmode.tempCString());
+                auto fp = _fdopen(fd, modez);
             else version (Posix)
             {
                 import core.sys.posix.stdio : fdopen;
-                auto fp = fdopen(fd, stdioOpenmode.tempCString());
+                auto fp = fdopen(fd, modez);
             }
             errnoEnforce(fp);
         }
@@ -1560,6 +1596,35 @@ This method can be more efficient than the one in the previous example
 because $(D stdin.readln(buf)) reuses (if possible) memory allocated
 for $(D buf), whereas $(D line = stdin.readln()) makes a new memory allocation
 for every line.
+
+For even better performance you can help $(D readln) by passing in a
+large buffer to avoid memory reallocations. This can be done by reusing the
+largest buffer returned by $(D readln):
+
+Example:
+---
+// Read lines from $(D stdin) and count words
+
+void main()
+{
+    char[] buf;
+    size_t words = 0;
+
+    while (!stdin.eof)
+    {
+        char[] line = buf;
+        stdin.readln(line);
+        if (line.length > buf.length)
+            buf = line;
+
+        words += line.split.length;
+    }
+
+    writeln(words);
+}
+---
+This is actually what $(LREF byLine) does internally, so its usage
+is recommended if you want to process a complete file.
 */
     size_t readln(C)(ref C[] buf, dchar terminator = '\n')
     if (isSomeChar!C && is(Unqual!C == C) && !is(C == enum))
@@ -1590,6 +1655,45 @@ for every line.
             }
             return buf.length;
         }
+    }
+
+    unittest
+    {
+        static import std.file;
+        auto deleteme = testFilename();
+        std.file.write(deleteme, "123\n456789");
+        scope(exit) std.file.remove(deleteme);
+
+        auto file = File(deleteme);
+        char[] buffer = new char[10];
+        char[] line = buffer;
+        file.readln(line);
+        auto beyond = line.length;
+        buffer[beyond] = 'a';
+        file.readln(line); // should not write buffer beyond line
+        assert(buffer[beyond] == 'a');
+    }
+
+    unittest // bugzilla 15293
+    {
+        static import std.file;
+        auto deleteme = testFilename();
+        std.file.write(deleteme, "a\n\naa");
+        scope(exit) std.file.remove(deleteme);
+
+        auto file = File(deleteme);
+        char[] buffer;
+        char[] line;
+
+        file.readln(buffer, '\n');
+
+        line = buffer;
+        file.readln(line, '\n');
+
+        line = buffer;
+        file.readln(line, '\n');
+
+        assert(line[0 .. 1].capacity == 0);
     }
 
 /** ditto */
@@ -1642,8 +1746,8 @@ for every line.
 
     /**
      * Read data from the file according to the specified
-     * $(LINK2 std_format.html#format-string, format specifier) using
-     * $(XREF format,formattedRead).
+     * $(LINK2 std_format.html#_format-string, format specifier) using
+     * $(XREF _format,formattedRead).
      */
     uint readf(Data...)(in char[] format, Data data)
     {
@@ -2471,7 +2575,7 @@ $(D Range) that locks the file and allows fast writing to it.
             import core.stdc.wchar_ : fwide;
             import std.exception : enforce;
 
-            enforce(f._p && f._p.handle);
+            enforce(f._p && f._p.handle, "Attempting to write to closed File");
             fps_ = f._p.handle;
             orientation_ = fwide(fps_, 0);
             FLOCK(fps_);
@@ -2819,6 +2923,13 @@ unittest
         writer.put(repeat('#', 12)); // BUG 11945
     }
     assert(File(deleteme).readln() == "日本語日本語日本語日本語############");
+}
+
+@safe unittest
+{
+    import std.exception: collectException;
+    auto e = collectException({ File f; f.writeln("Hello!"); }());
+    assert(e && e.msg == "Attempting to write to closed File");
 }
 
 /// Used to specify the lock type for $(D File.lock) and $(D File.tryLock).
@@ -3459,32 +3570,40 @@ unittest
  * (to $(D _wfopen) on Windows)
  * with appropriately-constructed C-style strings.
  */
-private FILE* fopen(in char[] name, in char[] mode = "r") @trusted nothrow @nogc
+private FILE* fopen(R1, R2)(R1 name, R2 mode = "r")
+    if ((isInputRange!R1 && isSomeChar!(ElementEncodingType!R1) || isSomeString!R1) &&
+        (isInputRange!R2 && isSomeChar!(ElementEncodingType!R2) || isSomeString!R2))
 {
     import std.internal.cstring : tempCString;
 
-    version(Windows)
+    auto namez = name.tempCString!FSChar();
+    auto modez = mode.tempCString!FSChar();
+
+    static fopenImpl(const(FSChar)* namez, const(FSChar)* modez) @trusted nothrow @nogc
     {
-        import std.internal.cstring : tempCStringW;
-        return _wfopen(name.tempCStringW(), mode.tempCStringW());
+        version(Windows)
+        {
+            return _wfopen(namez, modez);
+        }
+        else version(Posix)
+        {
+            /*
+             * The new opengroup large file support API is transparently
+             * included in the normal C bindings. http://opengroup.org/platform/lfs.html#1.0
+             * if _FILE_OFFSET_BITS in druntime is 64, off_t is 64 bit and
+             * the normal functions work fine. If not, then large file support
+             * probably isn't available. Do not use the old transitional API
+             * (the native extern(C) fopen64, http://www.unix.org/version2/whatsnew/lfs20mar.html#3.0)
+             */
+            import core.sys.posix.stdio : fopen;
+            return fopen(namez, modez);
+        }
+        else
+        {
+            return .fopen(namez, modez);
+        }
     }
-    else version(Posix)
-    {
-        /*
-         * The new opengroup large file support API is transparently
-         * included in the normal C bindings. http://opengroup.org/platform/lfs.html#1.0
-         * if _FILE_OFFSET_BITS in druntime is 64, off_t is 64 bit and
-         * the normal functions work fine. If not, then large file support
-         * probably isn't available. Do not use the old transitional API
-         * (the native extern(C) fopen64, http://www.unix.org/version2/whatsnew/lfs20mar.html#3.0)
-         */
-        import core.sys.posix.stdio : fopen;
-        return fopen(name.tempCString(), mode.tempCString());
-    }
-    else
-    {
-        return .fopen(name.tempCString(), mode.tempCString());
-    }
+    return fopenImpl(namez, modez);
 }
 
 version (Posix)
@@ -3493,12 +3612,21 @@ version (Posix)
      * Convenience function that forwards to $(D core.sys.posix.stdio.popen)
      * with appropriately-constructed C-style strings.
      */
-    FILE* popen(in char[] name, in char[] mode = "r") @trusted nothrow @nogc
+    FILE* popen(R1, R2)(R1 name, R2 mode = "r") @trusted nothrow @nogc
+        if ((isInputRange!R1 && isSomeChar!(ElementEncodingType!R1) || isSomeString!R1) &&
+            (isInputRange!R2 && isSomeChar!(ElementEncodingType!R2) || isSomeString!R2))
     {
-        import core.sys.posix.stdio : popen;
         import std.internal.cstring : tempCString;
 
-        return popen(name.tempCString(), mode.tempCString());
+        auto namez = name.tempCString!FSChar();
+        auto modez = mode.tempCString!FSChar();
+
+        static popenImpl(const(FSChar)* namez, const(FSChar)* modez) @trusted nothrow @nogc
+        {
+            import core.sys.posix.stdio : popen;
+            return popen(namez, modez);
+        }
+        return popenImpl(namez, modez);
     }
 }
 
@@ -4045,14 +4173,86 @@ unittest
     }
 }
 
+// roll our own appender, but with "safe" arrays
+private struct ReadlnAppender
+{
+    import core.stdc.string;
+
+    char[] buf;
+    size_t pos;
+    bool safeAppend = false;
+
+    void initialize(char[] b)
+    {
+        buf = b;
+        pos = 0;
+    }
+    @property char[] data()
+    {
+        if (safeAppend)
+            assumeSafeAppend(buf.ptr[0..pos]);
+        return buf.ptr[0..pos];
+    }
+
+    bool reserveWithoutAllocating(size_t n)
+    {
+        if (buf.length >= pos + n) // buf is already large enough
+            return true;
+
+        immutable curCap = buf.capacity;
+        if (curCap >= pos + n)
+        {
+            buf.length = curCap;
+            /* Any extra capacity we end up not using can safely be claimed
+            by someone else. */
+            safeAppend = true;
+            return true;
+        }
+
+        return false;
+    }
+    void reserve(size_t n)
+    {
+        if (!reserveWithoutAllocating(n))
+        {
+            size_t ncap = buf.length * 2 + 128 + n;
+            char[] nbuf = new char[ncap];
+            memcpy(nbuf.ptr, buf.ptr, pos);
+            buf = nbuf;
+            // Allocated a new buffer. No one else knows about it.
+            safeAppend = true;
+        }
+    }
+    void putchar(char c)
+    {
+        reserve(1);
+        buf.ptr[pos++] = c;
+    }
+    void putdchar(dchar dc)
+    {
+        import std.utf : toUTF8;
+
+        char[4] ubuf;
+        char[] u = toUTF8(ubuf, dc);
+        reserve(u.length);
+        foreach(c; u)
+            buf.ptr[pos++] = c;
+    }
+    void putonly(char[] b)
+    {
+        assert(pos == 0);   // assume this is the only put call
+        if (reserveWithoutAllocating(b.length))
+            memcpy(buf.ptr + pos, b.ptr, b.length);
+        else
+            buf = b.dup;
+        pos = b.length;
+    }
+}
+
 // Private implementation of readln
 version (DIGITAL_MARS_STDIO)
 private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator, File.Orientation /*ignored*/)
 {
-    import core.memory;
-    import core.stdc.string : memcpy;
-    import std.array : appender, uninitializedArray;
-
     FLOCK(fps);
     scope(exit) FUNLOCK(fps);
 
@@ -4061,17 +4261,19 @@ private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator, File.Orie
      */
     auto fp = cast(_iobuf*)fps;
 
+    ReadlnAppender app;
+    app.initialize(buf);
+
     if (__fhnd_info[fp._file] & FHND_WCHAR)
     {   /* Stream is in wide characters.
          * Read them and convert to chars.
          */
         static assert(wchar_t.sizeof == 2);
-        auto app = appender(buf);
-        app.clear();
         for (int c = void; (c = FGETWC(fp)) != -1; )
         {
             if ((c & ~0x7F) == 0)
-            {   app.put(cast(char) c);
+            {
+                app.putchar(cast(char) c);
                 if (c == terminator)
                     break;
             }
@@ -4087,34 +4289,23 @@ private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator, File.Orie
                     }
                     c = ((c - 0xD7C0) << 10) + (c2 - 0xDC00);
                 }
-                //std.utf.encode(buf, c);
-                app.put(cast(dchar)c);
+                app.putdchar(cast(dchar)c);
             }
         }
         if (ferror(fps))
             StdioException();
-        buf = app.data;
-        return buf.length;
     }
 
-    auto sz = GC.sizeOf(buf.ptr);
-    //auto sz = buf.length;
-    buf = buf.ptr[0 .. sz];
-    if (fp._flag & _IONBF)
+    else if (fp._flag & _IONBF)
     {
         /* Use this for unbuffered I/O, when running
          * across buffer boundaries, or for any but the common
          * cases.
          */
       L1:
-        auto app = appender(buf);
-        app.clear();
-        if(app.capacity == 0)
-            app.reserve(128); // get at least 128 bytes available
-
         int c;
         while((c = FGETC(fp)) != -1) {
-            app.put(cast(char) c);
+            app.putchar(cast(char) c);
             if(c == terminator) {
                 buf = app.data;
                 return buf.length;
@@ -4124,8 +4315,6 @@ private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator, File.Orie
 
         if (ferror(fps))
             StdioException();
-        buf = app.data;
-        return buf.length;
     }
     else
     {
@@ -4156,14 +4345,8 @@ private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator, File.Orie
                     goto L1;
                 }
             }
-            if (i > sz)
-            {
-                buf = uninitializedArray!(char[])(i);
-            }
-            if (i - 1)
-                memcpy(buf.ptr, p, i - 1);
-            buf[i - 1] = cast(char)terminator;
-            buf = buf[0 .. i];
+            app.putonly(p[0..i]);
+            app.buf.ptr[i - 1] = cast(char)terminator;
             if (terminator == '\n' && c == '\r')
                 i++;
         }
@@ -4178,24 +4361,20 @@ private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator, File.Orie
                 if (c == terminator)
                     break;
             }
-            if (i > sz)
-            {
-                buf = uninitializedArray!(char[])(i);
-            }
-            memcpy(buf.ptr, p, i);
-            buf = buf[0 .. i];
+            app.putonly(p[0..i]);
         }
         fp._cnt -= i;
         fp._ptr += i;
-        return i;
     }
+
+    buf = app.data;
+    return buf.length;
 }
 
 version (MICROSOFT_STDIO)
 private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator, File.Orientation /*ignored*/)
 {
     import core.memory;
-    import std.array : appender, uninitializedArray;
 
     FLOCK(fps);
     scope(exit) FUNLOCK(fps);
@@ -4205,18 +4384,12 @@ private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator, File.Orie
      */
     auto fp = cast(_iobuf*)fps;
 
-    auto sz = GC.sizeOf(buf.ptr);
-    //auto sz = buf.length;
-    buf = buf.ptr[0 .. sz];
-
-    auto app = appender(buf);
-    app.clear();
-    if(app.capacity == 0)
-        app.reserve(128); // get at least 128 bytes available
+    ReadlnAppender app;
+    app.initialize(buf);
 
     int c;
     while((c = FGETC(fp)) != -1) {
-        app.put(cast(char) c);
+        app.putchar(cast(char) c);
         if(c == terminator) {
             buf = app.data;
             return buf.length;
@@ -4318,7 +4491,8 @@ private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator, File.Orie
         buf.length = 0;                // end of file
         return 0;
     }
-    if (s <= buf.length || s <= GC.sizeOf(buf.ptr))
+
+    if (s <= buf.length)
     {
         buf = buf.ptr[0 .. s];
         buf[] = lineptr[0 .. s];
@@ -4430,6 +4604,40 @@ private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator, File.Orie
     return buf.length;
 }
 
+unittest
+{
+    auto deleteme = testFilename();
+    scope(exit) std.file.remove(deleteme);
+
+    std.file.write(deleteme, "abcd\n0123456789abcde\n1234\n");
+    File f = File(deleteme, "rb");
+
+    char[] ln = new char[2];
+    //assert(ln.capacity > 5);
+    char* lnptr = ln.ptr;
+    f.readln(ln);
+
+    assert(ln == "abcd\n");
+    //assert(lnptr == ln.ptr); // should not reallocate
+    char[] t = ln[0..2];
+    t ~= 't';
+    assert(t == "abt");
+    assert(ln == "abcd\n");  // bug 13856: ln stomped to "abtd"
+
+    // it can also stomp the array length
+    ln = new char[4];
+    //assert(ln.capacity < 16);
+    lnptr = ln.ptr;
+    f.readln(ln);
+    assert(ln == "0123456789abcde\n");
+    //assert(ln.ptr != lnptr);  // used to write to ln, overwriting allocation length byte
+
+    char[100] buf;
+    ln = buf[];
+    f.readln(ln);
+    assert(ln == "1234\n");
+    assert(ln.ptr == buf.ptr); // avoid allocation, buffer is good enough
+}
 
 /** Experimental network access via the File interface
 
@@ -4486,16 +4694,12 @@ version(linux)
     }
 }
 
-version(unittest) string testFilename(string file = __FILE__, size_t line = __LINE__) @safe pure
+version(unittest) string testFilename(string file = __FILE__, size_t line = __LINE__) @safe
 {
     import std.conv : text;
+    import std.file : deleteme;
     import std.path : baseName;
 
-    // Non-ASCII characters can't be used because of snn.lib @@@BUG8643@@@
-    version(DIGITAL_MARS_STDIO)
-        return text("deleteme-.", baseName(file), ".", line);
-    else
-
-        // filename intentionally contains non-ASCII (Russian) characters
-        return text("deleteme-детка.", baseName(file), ".", line);
+    // filename intentionally contains non-ASCII (Russian) characters for test Issue 7648
+    return text("deleteme-детка.", baseName(file), ".", line);
 }
