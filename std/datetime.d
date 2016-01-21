@@ -29479,6 +29479,7 @@ string tzDatabaseNameToWindowsTZName(string tzName) @safe pure nothrow @nogc
         case "Asia/Oral": return "West Asia Standard Time";
         case "Asia/Phnom_Penh": return "SE Asia Standard Time";
         case "Asia/Pontianak": return "SE Asia Standard Time";
+        case "Asia/Pyongyang": return "North Korea Standard Time";
         case "Asia/Qatar": return "Arab Standard Time";
         case "Asia/Qyzylorda": return "Central Asia Standard Time";
         case "Asia/Rangoon": return "Myanmar Standard Time";
@@ -29760,6 +29761,7 @@ string windowsTZNameToTZDatabaseName(string tzName) @safe pure nothrow @nogc
         case "Newfoundland Standard Time": return "America/St_Johns";
         case "North Asia East Standard Time": return "Asia/Irkutsk";
         case "North Asia Standard Time": return "Asia/Krasnoyarsk";
+        case "North Korea Standard Time": return "Asia/Pyongyang";
         case "Pacific SA Standard Time": return "America/Santiago";
         case "Pacific Standard Time": return "America/Los_Angeles";
         case "Pacific Standard Time (Mexico)": return "America/Santa_Isabel";
