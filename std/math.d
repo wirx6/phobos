@@ -664,7 +664,6 @@ else
 {
 
 real cos(real x) @safe pure nothrow @nogc { pragma(inline, true); return core.math.cos(x); }
->>>>>>> v2.069.2
 //FIXME
 ///ditto
 double cos(double x) @safe pure nothrow @nogc { return cos(cast(real)x); }
