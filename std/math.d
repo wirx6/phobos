@@ -4603,7 +4603,7 @@ private:
             }
             else version (ARM)
             {
-                return __asm!uint("vmrs $0, FPSCR; and $0, $0, #0x1F", "=r");
+                return __asm!uint("vmrs $0, FPSCR\n and $0, $0, #0x1F", "=r");
             }
             else
                 assert(0, "Not yet supported");
@@ -4656,11 +4656,11 @@ private:
             }
             else version (PPC_Any)
             {
-                __asm("mtfsb0 3; mtfsb0 4; mtfsb0 5; mtfsb0 6; mtfsb0 7; mtfsb0 8; mtfsb0 9; mtfsb0 10; mtfsb0 11; mtfsb0 12", "");
+                __asm("mtfsb0 3\n mtfsb0 4\n mtfsb0 5\n mtfsb0 6\n mtfsb0 7\n mtfsb0 8\n mtfsb0 9\n mtfsb0 10\n mtfsb0 11\n mtfsb0 12", "");
             }
             else version (MIPS_Any)
             {
-                cast(void) __asm!uint("cfc1 $0, $$31 ; andi $0, $0, 0xFFFFFF80 ; ctc1 $0, $$31", "=r");
+                cast(void) __asm!uint("cfc1 $0, $$31\n andi $0, $0, 0xFFFFFF80\n ctc1 $0, $$31", "=r");
             }
             else version (AArch64)
             {
@@ -4677,8 +4677,8 @@ private:
             {
                 // http://infocenter.arm.com/help/topic/com.arm.doc.ddi0408i/Chdfifdc.html
                 cast(void) __asm!uint
-                    ("vmrs $0, fpscr;"
-                     "bic $0, #0x1f;"
+                    ("vmrs $0, fpscr\n"
+                     "bic $0, #0x1f\n"
                      "vmsr fpscr, $0", "=r");
             }
             else
@@ -5149,11 +5149,11 @@ private:
             }
             else version (PPC_Any)
             {
-                __asm("mtfsb0 24; mtfsb0 25; mtfsb0 26; mtfsb0 27; mtfsb0 28", "");
+                __asm("mtfsb0 24\n mtfsb0 25\n mtfsb0 26\n mtfsb0 27\n mtfsb0 28", "");
             }
             else version (MIPS_Any)
             {
-                cast(void) __asm!uint("cfc1 $0, $$31 ; andi $0, $0, 0xFFFFF07F ; ctc1 $0, $$31", "=r");
+                cast(void) __asm!uint("cfc1 $0, $$31\n andi $0, $0, 0xFFFFF07F\n ctc1 $0, $$31", "=r");
             }
             else version (AArch64)
             {
@@ -5195,11 +5195,11 @@ private:
 
             version (X86)
             {
-                __asm("xor %eax, %eax; fstcw $0", "=*m,~{eax},~{flags}", &cont);
+                __asm("xor %eax, %eax\n fstcw $0", "=*m,~{eax},~{flags}", &cont);
             }
             else version (X86_64)
             {
-                __asm("xor %rax, %rax; fstcw $0", "=*m,~{rax},~{flags}", &cont);
+                __asm("xor %rax, %rax\n fstcw $0", "=*m,~{rax},~{flags}", &cont);
             }
             else version (PPC_Any)
             {
@@ -5259,11 +5259,11 @@ private:
         {
             version (X86)
             {
-                __asm("fclex; fldcw $0", "=*m,~{fpsw}", &newState);
+                __asm("fclex\n fldcw $0", "=*m,~{fpsw}", &newState);
             }
             else version (X86_64)
             {
-                __asm("fclex; fldcw $0", "=*m,~{fpsw}", &newState);
+                __asm("fclex\n fldcw $0", "=*m,~{fpsw}", &newState);
             }
             else version (PPC_Any)
             {
