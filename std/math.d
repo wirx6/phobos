@@ -2379,11 +2379,7 @@ creal expi(real y) @trusted pure nothrow @nogc
     // LDC-specific: don't swap x87 registers for result
     version(InlineAsm_X86_Any_X87)
     {
-        asm pure nothrow @nogc
-        {
-            fld y;
-            fsincos;
-        }
+        return __asm!creal("fsincos", "={st},={st(1)},{st}", y);
     }
     else
     {
