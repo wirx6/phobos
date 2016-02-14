@@ -140,8 +140,16 @@ version(LDC)
     version(LDC_MSVCRT) {}
     else
     {
-        version(X86)    version = INLINE_YL2X;
-        version(X86_64) version = INLINE_YL2X;
+        version(X86)
+        {
+            version = INLINE_YL2X;
+            version = INLINE_POLY;
+        }
+        version(X86_64)
+        {
+            version = INLINE_YL2X;
+            version = INLINE_POLY;
+        }
     }
 }
 
