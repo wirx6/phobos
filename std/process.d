@@ -724,10 +724,10 @@ private bool isExecutable(in char[] path) @trusted nothrow @nogc //TODO: @safe
 version (Posix) unittest
 {
     import std.algorithm;
-    auto unamePath = searchPathFor("uname");
-    assert (!unamePath.empty);
-    assert (unamePath[0] == '/');
-    assert (unamePath.endsWith("uname"));
+    auto lsPath = searchPathFor("ls");
+    assert (!lsPath.empty);
+    assert (lsPath[0] == '/');
+    assert (lsPath.endsWith("ls"));
     auto unlikely = searchPathFor("lkmqwpoialhggyaofijadsohufoiqezm");
     assert (unlikely is null, "Are you kidding me?");
 }
@@ -1472,7 +1472,12 @@ unittest // tryWait() and kill()
         TestScript prog = "while true; do sleep 1; done";
     }
     auto pid = spawnProcess(prog.path);
-    Thread.sleep(dur!"seconds"(1));
+    // Android appears to automatically kill sleeping processes very quickly,
+    // so shorten the wait before killing here.
+    version (Android)
+        Thread.sleep(dur!"msecs"(5));
+    else
+        Thread.sleep(dur!"seconds"(1));
     kill(pid);
     version (Windows)    assert (wait(pid) == 1);
     else version (Posix) assert (wait(pid) == -SIGTERM);
@@ -2126,6 +2131,10 @@ unittest
        "echo|set /p=%~1
         echo|set /p=%~2 1>&2
         exit 123";
+    else version (Android) TestScript prog =
+       `echo -n $1
+        echo -n $2 >&2
+        exit 123`;
     else version (Posix) TestScript prog =
        `printf '%s' $1
         printf '%s' $2 >&2
@@ -2315,8 +2324,7 @@ private struct TestScript
         else version (Posix)
         {
             auto ext = "";
-            version(Android) auto firstLine = "#!" ~ userShell;
-            else auto firstLine = "#!/bin/sh";
+            auto firstLine = "#!" ~ userShell;
         }
         path = uniqueTempPath()~ext;
         std.file.write(path, firstLine~std.ascii.newline~code~std.ascii.newline);
