@@ -28242,10 +28242,10 @@ public:
             auto tzfileOffset = name in tzdataIndex(tzDatabaseDir);
             enforce(tzfileOffset, new DateTimeException(format("The time zone %s is not listed.", name)));
             string tzFilename = separate_index ? "zoneinfo.dat" : "tzdata";
-            immutable file = buildNormalizedPath(tzDatabaseDir, tzFilename);
+            immutable file = asNormalizedPath(chainPath(tzDatabaseDir, tzFilename)).to!string;
         }
         else
-            immutable file = buildNormalizedPath(tzDatabaseDir, name);
+            immutable file = asNormalizedPath(chainPath(tzDatabaseDir, name)).to!string;
 
         enforce(file.exists(), new DateTimeException(format("File %s does not exist.", file)));
         enforce(file.isFile, new DateTimeException(format("%s is not a file.", file)));
@@ -29447,9 +29447,9 @@ else version(Posix)
         try
         {
             version(Android)
-                immutable value = tzDatabaseName;
+                auto value = asNormalizedPath(tzDatabaseName);
             else
-                immutable value = buildNormalizedPath(PosixTimeZone.defaultTZDatabaseDir, tzDatabaseName);
+                auto value = asNormalizedPath(chainPath(PosixTimeZone.defaultTZDatabaseDir, tzDatabaseName));
             setenv("TZ", value.tempCString(), 1);
             tzset();
         }
