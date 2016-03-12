@@ -387,6 +387,8 @@ struct InSituRegion(size_t size, size_t minAlign = platformAlignment)
 
     version (X86) enum growDownwards = Yes.growDownwards;
     else version (X86_64) enum growDownwards = Yes.growDownwards;
+    else version (AArch64) enum growDownwards = Yes.growDownwards;
+    else version (ARM) enum growDownwards = Yes.growDownwards;
     else static assert(0, "Dunno how the stack grows on this architecture.");
 
     @disable this(this);
