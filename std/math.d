@@ -2408,7 +2408,7 @@ creal expi(real y) @trusted pure nothrow @nogc
   version(LDC)
   {
     // LDC-specific: don't swap x87 registers for result
-    version(InlineAsm_X86_Any_X87)
+    version(none) // Was InlineAsm_X86_Any_X87 but this causes assertion failures
     {
         return __asm!creal("fsincos", "={st},={st(1)},{st}", y);
     }
