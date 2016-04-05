@@ -1794,20 +1794,6 @@ private
             }
         }
 
-    // @@@DEPRECATED_2016-03@@@
-    /++
-        $(RED Deprecated. isClosed can't be used with a const MessageBox.
-              It will be removed in March 2016).
-      +/
-        deprecated("isClosed can't be used with a const MessageBox")
-        final @property bool isClosed() const
-        {
-            synchronized( m_lock )
-            {
-                return m_closed;
-            }
-        }
-
         ///
         final @property bool isClosed()
         {
