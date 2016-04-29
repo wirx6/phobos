@@ -8018,18 +8018,18 @@ T nextPow2(T)(const T val) if (isFloatingPoint!T)
 
     version(LDC) {} else
     {
-        // this test relies on undefined behaviour, i.e. (1 << 33) == 1
+        // these tests rely on undefined behaviour, i.e. (1 << 33) == 1
         // that fails for LDC with optimizations enabled
         assert(nextPow2(uint.max) == 1);
-    }
-    assert(nextPow2(uint.min) == 0);
-    assert(nextPow2(size_t.max) == 1);
-    assert(nextPow2(size_t.min) == 0);
+        assert(nextPow2(uint.min) == 0);
+        assert(nextPow2(size_t.max) == 1);
+        assert(nextPow2(size_t.min) == 0);
 
-    assert(nextPow2(int.max) == int.min);
-    assert(nextPow2(int.min) == -1);
-    assert(nextPow2(long.max) == long.min);
-    assert(nextPow2(long.min) == -1);
+        assert(nextPow2(int.max) == int.min);
+        assert(nextPow2(int.min) == -1);
+        assert(nextPow2(long.max) == long.min);
+        assert(nextPow2(long.min) == -1);
+    }
 }
 
 ///
