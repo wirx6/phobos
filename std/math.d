@@ -8142,7 +8142,12 @@ T truncPow2(T)(const T val) if (isFloatingPoint!T)
     assert(truncPow2(ulong.min) == 0);
 
     assert(truncPow2(int.max) == (int.max / 2) + 1);
-    assert(truncPow2(int.min) == int.min);
+    version(LDC) {} else
+    {
+        // this test relies on undefined behaviour, i.e. (1 << 63) == int.min
+        // that fails for LDC with optimizations enabled
+        assert(truncPow2(int.min) == int.min);
+    }
     assert(truncPow2(long.max) == (long.max / 2) + 1);
     assert(truncPow2(long.min) == long.min);
 }
