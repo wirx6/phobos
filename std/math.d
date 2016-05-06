@@ -8016,15 +8016,20 @@ T nextPow2(T)(const T val) if (isFloatingPoint!T)
     assert(nextPow2(-2) == -4);
     assert(nextPow2(-10) == -16);
 
-    assert(nextPow2(uint.max) == 1);
-    assert(nextPow2(uint.min) == 0);
-    assert(nextPow2(size_t.max) == 1);
-    assert(nextPow2(size_t.min) == 0);
+    version(LDC) {} else
+    {
+        // these tests rely on undefined behaviour, i.e. (1 << 33) == 1
+        // that fails for LDC with optimizations enabled
+        assert(nextPow2(uint.max) == 1);
+        assert(nextPow2(uint.min) == 0);
+        assert(nextPow2(size_t.max) == 1);
+        assert(nextPow2(size_t.min) == 0);
 
-    assert(nextPow2(int.max) == int.min);
-    assert(nextPow2(int.min) == -1);
-    assert(nextPow2(long.max) == long.min);
-    assert(nextPow2(long.min) == -1);
+        assert(nextPow2(int.max) == int.min);
+        assert(nextPow2(int.min) == -1);
+        assert(nextPow2(long.max) == long.min);
+        assert(nextPow2(long.min) == -1);
+    }
 }
 
 ///
@@ -8137,7 +8142,12 @@ T truncPow2(T)(const T val) if (isFloatingPoint!T)
     assert(truncPow2(ulong.min) == 0);
 
     assert(truncPow2(int.max) == (int.max / 2) + 1);
-    assert(truncPow2(int.min) == int.min);
+    version(LDC) {} else
+    {
+        // this test relies on undefined behaviour, i.e. (1 << 63) == int.min
+        // that fails for LDC with optimizations enabled
+        assert(truncPow2(int.min) == int.min);
+    }
     assert(truncPow2(long.max) == (long.max / 2) + 1);
     assert(truncPow2(long.min) == long.min);
 }
