@@ -975,7 +975,7 @@ Pid spawnShell(in char[] command,
     else version (Posix)
     {
         const(char)[][3] args;
-        args[0] = "/bin/sh";
+        args[0] = userShell;
         args[1] = shellSwitch;
         args[2] = command;
     }
