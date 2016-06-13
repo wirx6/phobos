@@ -28708,6 +28708,13 @@ public:
         // Android concatenates all time zone data into a single file and stores it here.
         enum defaultTZDatabaseDir = "/system/usr/share/zoneinfo/";
     }
+    else version(Solaris)
+    {
+        /++
+            The default directory where the TZ Database files are.
+          +/
+        enum defaultTZDatabaseDir = "/usr/share/lib/zoneinfo/";
+    }
     else version(Posix)
     {
         /++
