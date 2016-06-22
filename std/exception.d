@@ -394,6 +394,7 @@ T enforce(T, Dg, string file = __FILE__, size_t line = __LINE__)
     if (isSomeFunction!Dg && is(typeof( dg() )) &&
         is(typeof({ if (!value) {} })))
 {
+version(LDC) pragma(inline, true); // Must inline because of __FILE__ as template parameter
     if (!value) dg();
     return value;
 }
@@ -588,6 +589,7 @@ unittest
 T errnoEnforce(T, string file = __FILE__, size_t line = __LINE__)
     (T value, lazy string msg = null)
 {
+version(LDC) pragma(inline, true); // Must inline because of __FILE__ as template parameter
     if (!value) throw new ErrnoException(msg, file, line);
     return value;
 }
