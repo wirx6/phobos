@@ -4137,7 +4137,8 @@ unittest
 @nogc pure nothrow unittest
 {
     int var = 6;
-    ubyte[__traits(classInstanceSize, __conv_EmplaceTestClass)] buf;
+    // The buffer must have same or higher alignment than class __conv_EmplaceTestClass.
+    align(8) ubyte[__traits(classInstanceSize, __conv_EmplaceTestClass)] buf;
     auto k = emplace!__conv_EmplaceTestClass(buf, 5, var);
     assert(k.i == 5);
     assert(var == 7);
@@ -5090,7 +5091,8 @@ unittest
     }
     void[] buf;
 
-    static byte[__traits(classInstanceSize, A)] sbuf;
+    // The buffer must have same or higher alignment than class A.
+    static align(8) byte[__traits(classInstanceSize, A)] sbuf;
     buf = sbuf[];
     auto a = emplace!A(buf, 55);
     assert(a.x == 55 && a.y == 55);
