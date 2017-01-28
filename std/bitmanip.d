@@ -3914,9 +3914,14 @@ private struct BitsSet(T)
     this(T value, size_t startIndex = 0)
     {
         _value = value;
-        immutable n = countTrailingZeros(value);
-        _index = startIndex + n;
-        _value >>>= n;
+        // Further calculation is only valid and needed when the range is non-empty.
+        if (!_value)
+            return;
+
+        import core.bitop : bsf;
+        uint trailingZerosCount = bsf(value);
+        _value >>>= trailingZerosCount;
+        _index = startIndex + trailingZerosCount;
     }
 
     @property size_t front()
@@ -3934,9 +3939,14 @@ private struct BitsSet(T)
         assert(_value, "Cannot call popFront on empty range.");
 
         _value >>>= 1;
-        immutable n = countTrailingZeros(_value);
-        _value >>>= n;
-        _index += n + 1;
+        // Further calculation is only valid and needed when the range is non-empty.
+        if (!_value)
+            return;
+
+        import core.bitop : bsf;
+        uint trailingZerosCount = bsf(_value);
+        _value >>>= trailingZerosCount;
+        _index += trailingZerosCount + 1;
     }
 
     @property auto save()
