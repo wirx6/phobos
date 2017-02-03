@@ -3027,7 +3027,7 @@ Target parse(Target, Source)(ref Source p)
 }
 
 //Tests for the double implementation
-@safe unittest
+unittest
 {
     static if (real.mant_dig == 53)
     {
