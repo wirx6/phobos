@@ -1676,6 +1676,8 @@ pure nothrow @safe unittest // issue 15884
     Test!dchar();
 }
 
+version(LDC) version(Win64) version = LDC_Win64;
+
 @safe unittest // issue 15885
 {
     static bool test(const double num0)
@@ -1683,7 +1685,9 @@ pure nothrow @safe unittest // issue 15884
         import std.math : feqrel;
         const json0 = JSONValue(num0);
         const num1 = to!double(toJSON(json0));
-        version(Win32)
+        version(LDC_Win64)
+            return feqrel(num1, num0) >= (double.mant_dig - 1);
+        else version(Win32)
             return feqrel(num1, num0) >= (double.mant_dig - 1);
         else
             return num1 == num0;
