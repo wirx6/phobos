@@ -1676,7 +1676,7 @@ pure nothrow @safe unittest // issue 15884
     Test!dchar();
 }
 
-version(LDC) version(Win64) version = LDC_Win64;
+version(LDC) version(CRuntime_Microsoft) version = LDC_MSVCRT;
 
 @safe unittest // issue 15885
 {
@@ -1685,7 +1685,7 @@ version(LDC) version(Win64) version = LDC_Win64;
         import std.math : feqrel;
         const json0 = JSONValue(num0);
         const num1 = to!double(toJSON(json0));
-        version(LDC_Win64)
+        version(LDC_MSVCRT)
             return feqrel(num1, num0) >= (double.mant_dig - 1);
         else version(Win32)
             return feqrel(num1, num0) >= (double.mant_dig - 1);
@@ -1701,7 +1701,10 @@ version(LDC) version(Win64) version = LDC_Win64;
     assert(test(30738.22));
 
     assert(test(1 + double.epsilon));
-    assert(test(-double.max));
+    version(LDC_MSVCRT)
+        assert(test(-double.max / 2));
+    else
+        assert(test(-double.max));
     assert(test(double.min_normal));
 
     const minSub = double.min_normal * double.epsilon;
