@@ -3015,6 +3015,7 @@ T read(T, Endian endianness = Endian.bigEndian, R)(ref R range)
 ///
 @safe unittest
 {
+    import std.range.primitives : empty;
     ubyte[] buffer = [1, 5, 22, 9, 44, 255, 8];
     assert(buffer.length == 7);
 
@@ -3774,57 +3775,6 @@ void append(T, Endian endianness = Endian.bigEndian, R)(R range, T value)
 }
 
 /**
-Counts the number of trailing zeros in the binary representation of $(D value).
-For signed integers, the sign bit is included in the count.
-*/
-private uint countTrailingZeros(T)(T value) @nogc pure nothrow
-    if (isIntegral!T)
-{
-    import core.bitop : bsf;
-    // bsf doesn't give the correct result for 0.
-    if (!value)
-        return 8 * T.sizeof;
-    else
-        return bsf(value);
-}
-
-///
-@safe unittest
-{
-    assert(countTrailingZeros(1) == 0);
-    assert(countTrailingZeros(0) == 32);
-    assert(countTrailingZeros(int.min) == 31);
-    assert(countTrailingZeros(256) == 8);
-}
-
-@safe unittest
-{
-    import std.meta;
-    foreach (T; AliasSeq!(byte, ubyte, short, ushort, int, uint, long, ulong))
-    {
-        assert(countTrailingZeros(cast(T)0) == 8 * T.sizeof);
-        assert(countTrailingZeros(cast(T)1) == 0);
-        assert(countTrailingZeros(cast(T)2) == 1);
-        assert(countTrailingZeros(cast(T)3) == 0);
-        assert(countTrailingZeros(cast(T)4) == 2);
-        assert(countTrailingZeros(cast(T)5) == 0);
-        assert(countTrailingZeros(cast(T)64) == 6);
-        static if (isSigned!T)
-        {
-            assert(countTrailingZeros(cast(T)-1) == 0);
-            assert(countTrailingZeros(T.min) == 8 * T.sizeof - 1);
-        }
-        else
-        {
-            assert(countTrailingZeros(T.max) == 0);
-        }
-    }
-    assert(countTrailingZeros(1_000_000) == 6);
-    foreach (i; 0..63)
-        assert(countTrailingZeros(1UL << i) == i);
-}
-
-/**
 Counts the number of set bits in the binary representation of $(D value).
 For signed integers, the sign bit is included in the count.
 */
@@ -3869,7 +3819,6 @@ private uint countBitsSet(T)(T value) @nogc pure nothrow
     return cast(uint)c;
 }
 
-///
 @safe unittest
 {
     assert(countBitsSet(1) == 1);
@@ -3919,7 +3868,7 @@ private struct BitsSet(T)
             return;
 
         import core.bitop : bsf;
-        uint trailingZerosCount = bsf(value);
+        immutable trailingZerosCount = bsf(value);
         _value >>>= trailingZerosCount;
         _index = startIndex + trailingZerosCount;
     }
@@ -3944,7 +3893,7 @@ private struct BitsSet(T)
             return;
 
         import core.bitop : bsf;
-        uint trailingZerosCount = bsf(_value);
+        immutable trailingZerosCount = bsf(_value);
         _value >>>= trailingZerosCount;
         _index += trailingZerosCount + 1;
     }
