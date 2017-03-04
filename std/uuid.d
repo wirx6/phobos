@@ -936,7 +936,12 @@ public struct UUID
             enum  utfstr = "8ab3060e-2cba-4f23-b74c-b52db3bdfb46";
             alias String = immutable(Char)[];
             enum String s = cast(String)utfstr;
+version(LDC) {
+            // See LDC Github PR #1719
+            static immutable id = UUID(utfstr);
+} else {
             enum id = UUID(utfstr);
+}
             //nogc
             Char[36] str;
             id.toString(str[]);
