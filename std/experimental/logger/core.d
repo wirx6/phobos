@@ -1,17 +1,9 @@
 ///
 module std.experimental.logger.core;
 
-import std.array;
-import std.stdio;
-import std.conv;
 import std.datetime;
-import std.string;
-import std.range;
+import std.range.primitives;
 import std.traits;
-import std.exception;
-import std.concurrency;
-import std.format;
-import core.atomic;
 import core.sync.mutex : Mutex;
 
 import std.experimental.logger.filelogger;
@@ -122,20 +114,22 @@ If this module exists and it contains a $(D LogLevel) called logLevel this $(D
 LogLevel) will be used. This parent lookup is continued until there is no
 parent module. Then the moduleLogLevel is $(D LogLevel.all).
 */
-template moduleLogLevel(string moduleName) if (!moduleName.length)
+template moduleLogLevel(string moduleName)
+if (!moduleName.length)
 {
     // default
     enum moduleLogLevel = LogLevel.all;
 }
 
 ///
-unittest
+@system unittest
 {
     static assert(moduleLogLevel!"" == LogLevel.all);
 }
 
 /// ditto
-template moduleLogLevel(string moduleName) if (moduleName.length)
+template moduleLogLevel(string moduleName)
+if (moduleName.length)
 {
     import std.string : format;
     mixin(q{
@@ -154,7 +148,7 @@ template moduleLogLevel(string moduleName) if (moduleName.length)
 }
 
 ///
-unittest
+@system unittest
 {
     static assert(moduleLogLevel!"not.amodule.path" == LogLevel.all);
 }
@@ -173,9 +167,11 @@ $(LREF std.datatime.DateTime.toISOExtString) except the fractional second part.
 The fractional second part is in milliseconds and is always 3 digits.
 */
 void systimeToISOString(OutputRange)(OutputRange o, const ref SysTime time)
-    if (isOutputRange!(OutputRange,string))
+if (isOutputRange!(OutputRange,string))
 {
-    const auto dt = cast(DateTime)time;
+    import std.format : formattedWrite;
+
+    const auto dt = cast(DateTime) time;
     const auto fsec = time.fracSecs.total!"msecs";
 
     formattedWrite(o, "%04d-%02d-%02dT%02d:%02d:%02d.%03d",
@@ -203,7 +199,7 @@ void log(int line = __LINE__, string file = __FILE__,
     string funcName = __FUNCTION__, string prettyFuncName = __PRETTY_FUNCTION__,
     string moduleName = __MODULE__, A...)(const LogLevel ll,
     lazy bool condition, lazy A args)
-    if (args.length != 1)
+if (args.length != 1)
 {
 version(LDC) pragma(inline, true); // Must inline because of __FILE__ as template parameter
     static if (isLoggingActive)
@@ -248,7 +244,7 @@ log(LogLevel.warning, "Hello World", 3.1415);
 void log(int line = __LINE__, string file = __FILE__,
     string funcName = __FUNCTION__, string prettyFuncName = __PRETTY_FUNCTION__,
     string moduleName = __MODULE__, A...)(const LogLevel ll, lazy A args)
-    if (args.length > 1 && !is(Unqual!(A[0]) : bool))
+if (args.length > 1 && !is(Unqual!(A[0]) : bool))
 {
 version(LDC) pragma(inline, true); // Must inline because of __FILE__ as template parameter
     static if (isLoggingActive)
@@ -294,7 +290,7 @@ log(true, "Hello World", 3.1415);
 void log(int line = __LINE__, string file = __FILE__,
     string funcName = __FUNCTION__, string prettyFuncName = __PRETTY_FUNCTION__,
     string moduleName = __MODULE__, A...)(lazy bool condition, lazy A args)
-    if (args.length != 1)
+if (args.length != 1)
 {
 version(LDC) pragma(inline, true); // Must inline because of __FILE__ as template parameter
     static if (isLoggingActive)
@@ -332,9 +328,9 @@ log("Hello World", 3.1415);
 void log(int line = __LINE__, string file = __FILE__,
     string funcName = __FUNCTION__, string prettyFuncName = __PRETTY_FUNCTION__,
     string moduleName = __MODULE__, A...)(lazy A args)
-    if ((args.length > 1 && !is(Unqual!(A[0]) : bool)
-            && !is(Unqual!(A[0]) == LogLevel))
-        || args.length == 0)
+if ((args.length > 1 && !is(Unqual!(A[0]) : bool)
+    && !is(Unqual!(A[0]) == LogLevel))
+    || args.length == 0)
 {
 version(LDC) pragma(inline, true); // Must inline because of __FILE__ as template parameter
     static if (isLoggingActive)
@@ -672,11 +668,11 @@ private void formatString(A...)(MsgRange oRange, A args)
 
     foreach (arg; args)
     {
-        std.format.formattedWrite(oRange, "%s", arg);
+        formattedWrite(oRange, "%s", arg);
     }
 }
 
-unittest
+@system unittest
 {
     void dummy() @safe
     {
@@ -721,6 +717,9 @@ flexibility.
 */
 abstract class Logger
 {
+    import std.array : appender, Appender;
+    import std.concurrency : thisTid, Tid;
+
     /** LogEntry is a aggregation combining all information associated
     with a log message. This aggregation will be passed to the method
     writeLogMsg.
@@ -1049,6 +1048,8 @@ abstract class Logger
             static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
                 synchronized (mutex)
             {
+                import std.format : formattedWrite;
+
                 if (isLoggingEnabled(ll, this.logLevel_, globalLogLevel,
                                      condition))
                 {
@@ -1095,6 +1096,8 @@ abstract class Logger
             static if (isLoggingActiveAt!ll && ll >= moduleLogLevel!moduleName)
                 synchronized (mutex)
             {
+                import std.format : formattedWrite;
+
                 if (isLoggingEnabled(ll, this.logLevel_, globalLogLevel))
                 {
                     this.beginLogMsg(file, line, funcName, prettyFuncName,
@@ -1156,7 +1159,7 @@ abstract class Logger
     l.log(1337);
     --------------------
     */
-    final void log(int line = __LINE__, string file = __FILE__,
+    void log(int line = __LINE__, string file = __FILE__,
         string funcName = __FUNCTION__,
         string prettyFuncName = __PRETTY_FUNCTION__,
         string moduleName = __MODULE__, A...)(const LogLevel ll,
@@ -1182,7 +1185,7 @@ abstract class Logger
     }
 
     /// Ditto
-    final void log(T, string moduleName = __MODULE__)(const LogLevel ll,
+    void log(T, string moduleName = __MODULE__)(const LogLevel ll,
         lazy bool condition, lazy T args, int line = __LINE__,
         string file = __FILE__, string funcName = __FUNCTION__,
         string prettyFuncName = __PRETTY_FUNCTION__)
@@ -1226,7 +1229,7 @@ abstract class Logger
     s.log(LogLevel.fatal, 1337, "is number");
     --------------------
     */
-    final void log(int line = __LINE__, string file = __FILE__,
+    void log(int line = __LINE__, string file = __FILE__,
         string funcName = __FUNCTION__,
         string prettyFuncName = __PRETTY_FUNCTION__,
         string moduleName = __MODULE__, A...)(const LogLevel ll, lazy A args)
@@ -1251,7 +1254,7 @@ abstract class Logger
     }
 
     /// Ditto
-    final void log(T)(const LogLevel ll, lazy T args, int line = __LINE__,
+    void log(T)(const LogLevel ll, lazy T args, int line = __LINE__,
         string file = __FILE__, string funcName = __FUNCTION__,
         string prettyFuncName = __PRETTY_FUNCTION__,
         string moduleName = __MODULE__)
@@ -1295,7 +1298,7 @@ abstract class Logger
     s.log(false, 1337, "is number");
     --------------------
     */
-    final void log(int line = __LINE__, string file = __FILE__,
+    void log(int line = __LINE__, string file = __FILE__,
         string funcName = __FUNCTION__,
         string prettyFuncName = __PRETTY_FUNCTION__,
         string moduleName = __MODULE__, A...)(lazy bool condition, lazy A args)
@@ -1321,7 +1324,7 @@ abstract class Logger
     }
 
     /// Ditto
-    final void log(T)(lazy bool condition, lazy T args, int line = __LINE__,
+    void log(T)(lazy bool condition, lazy T args, int line = __LINE__,
         string file = __FILE__, string funcName = __FUNCTION__,
         string prettyFuncName = __PRETTY_FUNCTION__,
         string moduleName = __MODULE__)
@@ -1364,7 +1367,7 @@ abstract class Logger
     s.log(1337, "is number");
     --------------------
     */
-    final void log(int line = __LINE__, string file = __FILE__,
+    void log(int line = __LINE__, string file = __FILE__,
         string funcName = __FUNCTION__,
         string prettyFuncName = __PRETTY_FUNCTION__,
         string moduleName = __MODULE__, A...)(lazy A args)
@@ -1392,7 +1395,7 @@ abstract class Logger
     }
 
     /// Ditto
-    final void log(T)(lazy T arg, int line = __LINE__, string file = __FILE__,
+    void log(T)(lazy T arg, int line = __LINE__, string file = __FILE__,
         string funcName = __FUNCTION__,
         string prettyFuncName = __PRETTY_FUNCTION__,
         string moduleName = __MODULE__)
@@ -1438,7 +1441,7 @@ abstract class Logger
     s.logf(LogLevel.fatal, true ,"%d %s", 1337, "is number");
     --------------------
     */
-    final void logf(int line = __LINE__, string file = __FILE__,
+    void logf(int line = __LINE__, string file = __FILE__,
         string funcName = __FUNCTION__,
         string prettyFuncName = __PRETTY_FUNCTION__,
         string moduleName = __MODULE__, A...)(const LogLevel ll,
@@ -1446,6 +1449,8 @@ abstract class Logger
     {
         static if (isLoggingActive) synchronized (mutex)
         {
+            import std.format : formattedWrite;
+
             if (isLoggingEnabled(ll, this.logLevel_, globalLogLevel, condition))
             {
                 this.beginLogMsg(file, line, funcName, prettyFuncName,
@@ -1484,7 +1489,7 @@ abstract class Logger
     s.logf(LogLevel.fatal, "%d %s", 1337, "is number");
     --------------------
     */
-    final void logf(int line = __LINE__, string file = __FILE__,
+    void logf(int line = __LINE__, string file = __FILE__,
         string funcName = __FUNCTION__,
         string prettyFuncName = __PRETTY_FUNCTION__,
         string moduleName = __MODULE__, A...)(const LogLevel ll,
@@ -1492,6 +1497,8 @@ abstract class Logger
     {
         static if (isLoggingActive) synchronized (mutex)
         {
+            import std.format : formattedWrite;
+
             if (isLoggingEnabled(ll, this.logLevel_, globalLogLevel))
             {
                 this.beginLogMsg(file, line, funcName, prettyFuncName,
@@ -1531,7 +1538,7 @@ abstract class Logger
     s.logf(true ,"%d %s", 1337, "is number");
     --------------------
     */
-    final void logf(int line = __LINE__, string file = __FILE__,
+    void logf(int line = __LINE__, string file = __FILE__,
         string funcName = __FUNCTION__,
         string prettyFuncName = __PRETTY_FUNCTION__,
         string moduleName = __MODULE__, A...)(lazy bool condition,
@@ -1539,6 +1546,8 @@ abstract class Logger
     {
         static if (isLoggingActive) synchronized (mutex)
         {
+            import std.format : formattedWrite;
+
             if (isLoggingEnabled(this.logLevel_, this.logLevel_, globalLogLevel,
                 condition))
             {
@@ -1576,13 +1585,15 @@ abstract class Logger
     s.logf("%d %s", 1337, "is number");
     --------------------
     */
-    final void logf(int line = __LINE__, string file = __FILE__,
+    void logf(int line = __LINE__, string file = __FILE__,
         string funcName = __FUNCTION__,
         string prettyFuncName = __PRETTY_FUNCTION__,
         string moduleName = __MODULE__, A...)(lazy string msg, lazy A args)
     {
         static if (isLoggingActive) synchronized (mutex)
         {
+            import std.format : formattedWrite;
+
             if (isLoggingEnabled(this.logLevel_, this.logLevel_,
                 globalLogLevel))
             {
@@ -1620,6 +1631,9 @@ private shared LogLevel stdLoggerGlobalLogLevel = LogLevel.all;
  */
 private @property Logger defaultSharedLoggerImpl() @trusted
 {
+    import std.conv : emplace;
+    import std.stdio : stderr;
+
     static __gshared ubyte[__traits(classInstanceSize, FileLogger)] _buffer;
 
     synchronized (stdSharedLoggerMutex)
@@ -1659,6 +1673,7 @@ if (sharedLog !is myLogger)
 {
     static auto trustedLoad(ref shared Logger logger) @trusted
     {
+        import core.atomic : atomicLoad, MemoryOrder;
         return atomicLoad!(MemoryOrder.acq)(logger);
     }
 
@@ -1677,6 +1692,7 @@ if (sharedLog !is myLogger)
 /// Ditto
 @property void sharedLog(Logger logger) @trusted
 {
+    import core.atomic : atomicStore, MemoryOrder;
     atomicStore!(MemoryOrder.rel)(stdSharedLogger, cast(shared) logger);
 }
 
@@ -1748,6 +1764,8 @@ private Logger stdLoggerDefaultThreadLogger;
 */
 private @property Logger stdThreadLocalLogImpl() @trusted
 {
+    import std.conv : emplace;
+
     static ubyte[__traits(classInstanceSize, StdForwardLogger)] _buffer;
 
     auto buffer = cast(ubyte[]) _buffer;
@@ -1787,7 +1805,7 @@ functions.
 }
 
 /// Ditto
-unittest
+@system unittest
 {
     import std.experimental.logger.filelogger : FileLogger;
     import std.file : deleteme, remove;
@@ -1930,6 +1948,10 @@ version(unittest) private void testFuncNames(Logger logger) @safe
 
 @safe unittest
 {
+    import std.conv : to;
+    import std.exception : assertThrown, assertNotThrown;
+    import std.format : format;
+
     auto l = new TestLogger(LogLevel.all);
     string msg = "Hello Logger World";
     l.log(msg);
@@ -2066,9 +2088,11 @@ version(unittest) private void testFuncNames(Logger logger) @safe
     assert(l.logLevel == LogLevel.all);
 }
 
-unittest // default logger
+@system unittest // default logger
 {
     import std.file : deleteme, exists, remove;
+    import std.stdio : File;
+    import std.string : indexOf;
 
     string filename = deleteme ~ __FUNCTION__ ~ ".tempLogFile";
     FileLogger l = new FileLogger(filename);
@@ -2104,9 +2128,11 @@ unittest // default logger
     file.close();
 }
 
-unittest
+@system unittest
 {
     import std.file : deleteme, remove;
+    import std.stdio : File;
+    import std.string : indexOf;
 
     string filename = deleteme ~ __FUNCTION__ ~ ".tempLogFile";
     auto oldunspecificLogger = sharedLog;
@@ -2139,6 +2165,8 @@ unittest
 
 @safe unittest
 {
+    import std.conv : to;
+
     auto tl = new TestLogger(LogLevel.all);
     int l = __LINE__;
     tl.info("a");
@@ -2155,6 +2183,10 @@ unittest
 // testing possible log conditions
 @safe unittest
 {
+    import std.conv : to;
+    import std.string : indexOf;
+    import std.format : format;
+
     auto oldunspecificLogger = sharedLog;
 
     auto mem = new TestLogger;
@@ -2398,6 +2430,10 @@ unittest
 // more testing
 @safe unittest
 {
+    import std.conv : to;
+    import std.format : format;
+    import std.string : indexOf;
+
     auto oldunspecificLogger = sharedLog;
 
     auto mem = new TestLogger;
@@ -2882,6 +2918,8 @@ unittest
 // Issue #5
 @safe unittest
 {
+    import std.string : indexOf;
+
     auto oldunspecificLogger = sharedLog;
 
     scope(exit)
@@ -2901,6 +2939,8 @@ unittest
 @safe unittest
 {
     import std.experimental.logger.multilogger : MultiLogger;
+    import std.string : indexOf;
+
     stdThreadLocalLog.logLevel = LogLevel.all;
 
     auto oldunspecificLogger = sharedLog;
@@ -2925,7 +2965,7 @@ unittest
     assert(tl.msg.indexOf("error") == 0);
 }
 
-unittest
+@system unittest
 {
     import std.exception : assertThrown;
     auto tl = new TestLogger();
@@ -2933,7 +2973,7 @@ unittest
 }
 
 // log objects with non-safe toString
-unittest
+@system unittest
 {
     struct Test
     {
@@ -2951,18 +2991,20 @@ unittest
 // Workaround for atomics not allowed in @safe code
 private auto trustedLoad(T)(ref shared T value) @trusted
 {
+    import core.atomic : atomicLoad, MemoryOrder;
     return atomicLoad!(MemoryOrder.acq)(value);
 }
 
 // ditto
 private void trustedStore(T)(ref shared T dst, ref T src) @trusted
 {
+    import core.atomic : atomicStore, MemoryOrder;
     atomicStore!(MemoryOrder.rel)(dst, src);
 }
 
 // check that thread-local logging does not propagate
 // to shared logger
-unittest
+@system unittest
 {
     import std.concurrency, core.atomic, core.thread;
 
@@ -3007,7 +3049,7 @@ unittest
     sharedLog = new IgnoredLog;
     Thread[] spawned;
 
-    foreach (i; 0..4)
+    foreach (i; 0 .. 4)
     {
         spawned ~= new Thread({
             stdThreadLocalLog = new TestLog;
@@ -3019,17 +3061,17 @@ unittest
     foreach (t; spawned)
         t.join();
 
-    assert (atomicOp!"=="(logged_count, 4));
+    assert(atomicOp!"=="(logged_count, 4));
 }
 
 @safe unittest
 {
-    auto dl = cast(FileLogger)sharedLog;
+    auto dl = cast(FileLogger) sharedLog;
     assert(dl !is null);
     assert(dl.logLevel == LogLevel.all);
     assert(globalLogLevel == LogLevel.all);
 
-    auto tl = cast(StdForwardLogger)stdThreadLocalLog;
+    auto tl = cast(StdForwardLogger) stdThreadLocalLog;
     assert(tl !is null);
     stdThreadLocalLog.logLevel = LogLevel.all;
 }
@@ -3046,7 +3088,7 @@ unittest
 }
 
 // Ensure @system toString methods work
-unittest
+@system unittest
 {
     enum SystemToStringMsg = "SystemToString";
     static struct SystemToString
