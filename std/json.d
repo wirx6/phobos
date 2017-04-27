@@ -1678,6 +1678,8 @@ pure nothrow @safe unittest // issue 15884
     Test!dchar();
 }
 
+version(LDC) version(CRuntime_Microsoft) version = LDC_MSVCRT;
+
 @safe unittest // issue 15885
 {
     static bool test(const double num0)
