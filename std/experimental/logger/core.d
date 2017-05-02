@@ -1620,7 +1620,7 @@ private shared LogLevel stdLoggerGlobalLogLevel = LogLevel.all;
  */
 private @property Logger defaultSharedLoggerImpl() @trusted
 {
-    static __gshared ubyte[__traits(classInstanceSize, FileLogger)] _buffer;
+    static __gshared align(FileLogger.alignof) void[__traits(classInstanceSize, FileLogger)] _buffer;
 
     synchronized (stdSharedLoggerMutex)
     {
@@ -1748,7 +1748,7 @@ private Logger stdLoggerDefaultThreadLogger;
 */
 private @property Logger stdThreadLocalLogImpl() @trusted
 {
-    static ubyte[__traits(classInstanceSize, StdForwardLogger)] _buffer;
+    static align(StdForwardLogger.alignof) void[__traits(classInstanceSize, StdForwardLogger)] _buffer;
 
     auto buffer = cast(ubyte[]) _buffer;
 
