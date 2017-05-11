@@ -178,9 +178,6 @@ else
     version (Win64_DMD_InlineAsm) version = Win64_DMD_InlineAsm_X87;
 }
 
-version(LDC) {}
-else
-{
 version (X86_64) version = StaticallyHaveSSE;
 version (X86) version (OSX) version = StaticallyHaveSSE;
 
@@ -188,11 +185,18 @@ version (StaticallyHaveSSE)
 {
     private enum bool haveSSE = true;
 }
+else version (LDC) // exclude non-X86 targets
+{
+    version (X86)
+    {
+        static import core.cpuid;
+        private alias haveSSE = core.cpuid.sse;
+    }
+}
 else
 {
     static import core.cpuid;
     private alias haveSSE = core.cpuid.sse;
-}
 }
 
 version(unittest)
@@ -4734,13 +4738,31 @@ private:
 private:
     static uint getIeeeFlags()
     {
-        version (LDC)
+        version(InlineAsm_X86_Any)
         {
-            version (X86_Any)
-            {
-                return __asm!ushort("fstsw %ax", "={ax}") & 0x3d;
+            version (LDC) {
+                const sw = __asm!ushort("fstsw %ax", "={ax}");
+            } else {
+                ushort sw;
+                asm pure nothrow @nogc { fstsw sw; }
             }
-            else version (PPC_Any)
+
+            // OR the result with the SSE2 status register (MXCSR).
+            if (haveSSE)
+            {
+                uint mxcsr;
+                version (LDC) {
+                    __asm("stmxcsr $0", "=*m", &mxcsr);
+                } else {
+                    asm pure nothrow @nogc { stmxcsr mxcsr; }
+                }
+                return (sw | mxcsr) & EXCEPTIONS_MASK;
+            }
+            else return sw & EXCEPTIONS_MASK;
+        }
+        else version (LDC)
+        {
+            version (PPC_Any)
             {
                 double fspr = __asm!double("mffs $0", "=f");
                 return cast(uint) *cast(ulong*) &fspr;
@@ -4766,20 +4788,6 @@ private:
             else
                 assert(0, "Not yet supported");
         }
-        else version(D_InlineAsm_X86_Any)
-        {
-            ushort sw;
-            asm pure nothrow @nogc { fstsw sw; }
-
-            // OR the result with the SSE2 status register (MXCSR).
-            if (haveSSE)
-            {
-                uint mxcsr;
-                asm pure nothrow @nogc { stmxcsr mxcsr; }
-                return (sw | mxcsr) & EXCEPTIONS_MASK;
-            }
-            else return sw & EXCEPTIONS_MASK;
-        }
         else version (SPARC)
         {
            /*
@@ -4798,13 +4806,35 @@ private:
     }
     static void resetIeeeFlags() @nogc
     {
-        version (LDC)
+        version(InlineAsm_X86_Any)
         {
-            version (X86_Any)
-            {
+            version (LDC) {
                 __asm("fnclex", "~{fpsw}");
+            } else {
+                asm pure nothrow @nogc
+                {
+                    fnclex;
+                }
             }
-            else version (PPC_Any)
+
+            // Also clear exception flags in MXCSR, SSE's control register.
+            if (haveSSE)
+            {
+                uint mxcsr;
+                version (LDC) {
+                    __asm("stmxcsr $0", "=*m", &mxcsr);
+                    mxcsr &= ~EXCEPTIONS_MASK;
+                    __asm("ldmxcsr $0", "*m,~{flags}", &mxcsr);
+                } else {
+                    asm nothrow @nogc { stmxcsr mxcsr; }
+                    mxcsr &= ~EXCEPTIONS_MASK;
+                    asm nothrow @nogc { ldmxcsr mxcsr; }
+                }
+            }
+        }
+        else version (LDC)
+        {
+            version (PPC_Any)
             {
                 __asm("mtfsb0 3\n" ~
                       "mtfsb0 4\n" ~
@@ -4842,22 +4872,6 @@ private:
             }
             else
                 assert(0, "Not yet supported");
-        }
-        else version(InlineAsm_X86_Any)
-        {
-            asm pure nothrow @nogc
-            {
-                fnclex;
-            }
-
-            // Also clear exception flags in MXCSR, SSE's control register.
-            if (haveSSE)
-            {
-                uint mxcsr;
-                asm nothrow @nogc { stmxcsr mxcsr; }
-                mxcsr &= ~EXCEPTIONS_MASK;
-                asm nothrow @nogc { ldmxcsr mxcsr; }
-            }
         }
         else
         {
@@ -5374,7 +5388,7 @@ private:
         {
             version (X86_Any)
             {
-                __asm("fclex", "~{fpsw}");
+                resetIeeeFlags();
             }
             else version (PPC_Any)
             {
@@ -5484,19 +5498,53 @@ private:
     // Set the control register
     static void setControlState(ControlState newState) @trusted nothrow @nogc
     {
-        version (LDC)
+        version (InlineAsm_X86_Any)
         {
-            version (X86)
-            {
+            version (LDC) {
                 __asm("fclex\n" ~
                       "fldcw $0", "=*m,~{fpsw}", &newState);
+            } else {
+                asm nothrow @nogc
+                {
+                    fclex;
+                    fldcw newState;
+                }
             }
-            else version (X86_64)
+
+            // Also update MXCSR, SSE's control register.
+            if (haveSSE)
             {
-                __asm("fclex\n" ~
-                      "fldcw $0", "=*m,~{fpsw}", &newState);
+                uint mxcsr;
+                version (LDC) {
+                    __asm("stmxcsr $0", "=*m", &mxcsr);
+                } else {
+                    asm nothrow @nogc { stmxcsr mxcsr; }
+                }
+
+                /* In the FPU control register, rounding mode is in bits 10 and
+                11. In MXCSR it's in bits 13 and 14. */
+                enum ROUNDING_MASK_SSE = ROUNDING_MASK << 3;
+                immutable newRoundingModeSSE = (newState & ROUNDING_MASK) << 3;
+                mxcsr &= ~ROUNDING_MASK_SSE; // delete old rounding mode
+                mxcsr |= newRoundingModeSSE; // write new rounding mode
+
+                /* In the FPU control register, masks are bits 0 through 5.
+                In MXCSR they're 7 through 12. */
+                enum EXCEPTION_MASK_SSE = EXCEPTION_MASK << 7;
+                immutable newExceptionMasks = (newState & EXCEPTION_MASK) << 7;
+                mxcsr &= ~EXCEPTION_MASK_SSE; // delete old masks
+                mxcsr |= newExceptionMasks; // write new exception masks
+
+                version (LDC) {
+                    __asm("ldmxcsr $0", "*m,~{flags}", &mxcsr);
+                } else {
+                    asm nothrow @nogc { ldmxcsr mxcsr; }
+                }
             }
-            else version (PPC_Any)
+        }
+        else version (LDC)
+        {
+            version (PPC_Any)
             {
                 ulong tmpState = newState;
                 double fspr = *cast(double*) &tmpState;
@@ -5519,37 +5567,6 @@ private:
             }
             else
                 assert(0, "Not yet supported");
-        }
-        else version (InlineAsm_X86_Any)
-        {
-            asm nothrow @nogc
-            {
-                fclex;
-                fldcw newState;
-            }
-
-            // Also update MXCSR, SSE's control register.
-            if (haveSSE)
-            {
-                uint mxcsr;
-                asm nothrow @nogc { stmxcsr mxcsr; }
-
-                /* In the FPU control register, rounding mode is in bits 10 and
-                11. In MXCSR it's in bits 13 and 14. */
-                enum ROUNDING_MASK_SSE = ROUNDING_MASK << 3;
-                immutable newRoundingModeSSE = (newState & ROUNDING_MASK) << 3;
-                mxcsr &= ~ROUNDING_MASK_SSE; // delete old rounding mode
-                mxcsr |= newRoundingModeSSE; // write new rounding mode
-
-                /* In the FPU control register, masks are bits 0 through 5.
-                In MXCSR they're 7 through 12. */
-                enum EXCEPTION_MASK_SSE = EXCEPTION_MASK << 7;
-                immutable newExceptionMasks = (newState & EXCEPTION_MASK) << 7;
-                mxcsr &= ~EXCEPTION_MASK_SSE; // delete old masks
-                mxcsr |= newExceptionMasks; // write new exception masks
-
-                asm nothrow @nogc { ldmxcsr mxcsr; }
-            }
         }
         else
             assert(0, "Not yet supported");
