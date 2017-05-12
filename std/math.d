@@ -5437,12 +5437,12 @@ private:
             version (X86)
             {
                 __asm("xor %eax, %eax\n" ~
-                      "fstcw $0", "=*m,~{eax},~{flags}", &cont);
+                      "fstcw $0", "=*m,~{eax}", &cont);
             }
             else version (X86_64)
             {
                 __asm("xor %rax, %rax\n" ~
-                      "fstcw $0", "=*m,~{rax},~{flags}", &cont);
+                      "fstcw $0", "=*m,~{rax}", &cont);
             }
             else version (PPC_Any)
             {
@@ -5502,7 +5502,7 @@ private:
         {
             version (LDC) {
                 __asm("fclex\n" ~
-                      "fldcw $0", "=*m,~{fpsw}", &newState);
+                      "fldcw $0", "*m,~{fpsw}", &newState);
             } else {
                 asm nothrow @nogc
                 {
