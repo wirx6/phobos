@@ -4930,6 +4930,7 @@ version (LDC)
     }
 }
 else
+{
 @system unittest
 {
     static void func() {
@@ -5001,6 +5002,7 @@ else
         }
     }
 }
+} // !LDC
 
 version(X86_Any)
 {
@@ -5613,6 +5615,13 @@ private:
     ensureDefaults();
 }
 
+version (LDC)
+{
+    // TODO: most likely issue #888 again, verify
+    // Linux x86_64: debug works, release fails
+    // Win64: debug and release fail
+}
+else
 @system unittest // rounding
 {
     import std.meta : AliasSeq;
