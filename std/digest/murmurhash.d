@@ -37,6 +37,9 @@ $(BR) $(LINK2 https://en.wikipedia.org/wiki/MurmurHash, Wikipedia)
  */
 module std.digest.murmurhash;
 
+version(X86)         version = haveUnalignedLoads;
+else version(X86_64) version = haveUnalignedLoads;
+
 ///
 @safe unittest
 {
@@ -496,29 +499,81 @@ struct MurmurHash3(uint size /* 32 or 128 */ , uint opt = size_t.sizeof == 8 ? 6
         // Buffer should never be full while entering this function.
         assert(bufferSize < Element.sizeof);
 
-        // Check if we have some leftover data in the buffer. Then fill the first block buffer.
+        // Check if we don't even fill up a single block buffer.
         if (bufferSize + data.length < Element.sizeof)
         {
             buffer.data[bufferSize .. bufferSize + data.length] = data[];
             bufferSize += data.length;
             return;
         }
-        const bufferLeeway = Element.sizeof - bufferSize;
-        assert(bufferLeeway <= Element.sizeof);
-        buffer.data[bufferSize .. $] = data[0 .. bufferLeeway];
-        putElement(buffer.block);
-        data = data[bufferLeeway .. $];
 
-        // Do main work: process chunks of `Element.sizeof` bytes.
-        const numElements = data.length / Element.sizeof;
-        const remainderStart = numElements * Element.sizeof;
-        foreach (ref const Element block; cast(const(Element[]))(data[0 .. remainderStart]))
+        // Check if we have some leftover data in the buffer. Then fill the first block buffer.
+        const bool haveLeewayElement = (bufferSize != 0);
+        if (haveLeewayElement)
         {
-            putElement(block);
+            const bufferLeeway = Element.sizeof - bufferSize;
+            assert(bufferLeeway < Element.sizeof);
+            buffer.data[bufferSize .. $] = data[0 .. bufferLeeway];
+            putElement(buffer.block);
+            data = data[bufferLeeway .. $];
         }
-        // +1 for bufferLeeway Element.
-        element_count += (numElements + 1) * Element.sizeof;
-        data = data[remainderStart .. $];
+
+        size_t numChunks = 0;
+        version(haveUnalignedLoads)
+        {
+            // Do main work: process chunks of `Element.sizeof` bytes.
+            numChunks = data.length / Element.sizeof;
+            foreach (ref const Element block; cast(const(Element[]))(data[0 .. numChunks * Element.sizeof]))
+            {
+                putElement(block);
+            }
+        }
+        else
+        {
+            size_t processChunks(TChunk)()
+            {
+                const numFullChunks = data.length / TChunk.sizeof;
+                foreach (ref const chunk; cast(const(TChunk)[]) data[0 .. numFullChunks * TChunk.sizeof])
+                {
+                    const block = cast(Element) chunk;
+                    putElement(block);
+                }
+                return numFullChunks;
+            }
+
+            const startAddress = cast(size_t) data.ptr;
+            static if (size >= 64)
+            {
+                if ((startAddress & 7) == 0)
+                    numChunks = processChunks!(ulong[size / 64])();
+                else if ((startAddress & 3) == 0)
+                    numChunks = processChunks!(uint[size / 32])();
+                else if ((startAddress & 1) == 0)
+                    numChunks = processChunks!(ushort[size / 16])();
+                else
+                    numChunks = processChunks!(ubyte[size / 8])();
+            }
+            else
+            {
+                static assert(size == 32);
+                if ((startAddress & 3) == 0)
+                    numChunks = processChunks!(Element)();
+                else
+                {
+                    numChunks = data.length / Element.sizeof;
+                    foreach (ref const chunk; cast(const(ubyte[4])[]) data[0 .. numChunks * Element.sizeof])
+                    {
+                        import core.stdc.string : memcpy;
+                        Element block;
+                        ()@trusted{memcpy(&block, &chunk, Element.sizeof);}();
+                        putElement(block);
+                    }
+                }
+            }
+        }
+
+        element_count += (numChunks + haveLeewayElement) * Element.sizeof;
+        data = data[numChunks * Element.sizeof .. $];
 
         // Now add remaining data to buffer.
         assert(data.length < Element.sizeof);
@@ -739,10 +794,13 @@ version (unittest)
     // Pushing unaligned data and making sure the result is still coherent.
     void testUnalignedHash(H)()
     {
-        immutable ubyte[1025] data = 0xAC;
-        immutable alignedHash = digest!H(data[0 .. $ - 1]); // 0 .. 1023
-        immutable unalignedHash = digest!H(data[1 .. $]); // 1 .. 1024
-        assert(alignedHash == unalignedHash);
+        immutable ubyte[1028] data = 0xAC;
+        immutable alignedHash = digest!H(data[0 .. 1024]);
+        foreach(i; 1 .. 5)
+        {
+            immutable unalignedHash = digest!H(data[i .. 1024 + i]);
+            assert(alignedHash == unalignedHash);
+        }
     }
 
     testUnalignedHash!(MurmurHash3!32)();
