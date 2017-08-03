@@ -6889,7 +6889,7 @@ real fdim(real x, real y) @safe pure nothrow @nogc { return (x > y) ? x - y : +0
 /****************************************
  * Returns the larger of x and y.
  */
-static if (__traits(compiles, llvm_maxnum(1.0, 2.0))) // LDC-specific
+version(LDC)
 {
     real   fmax(real   x, real   y) @safe pure nothrow @nogc { return llvm_maxnum(x, y); }
     //double fmax(double x, double y) @safe pure nothrow @nogc { return llvm_maxnum(x, y); }
@@ -6901,7 +6901,7 @@ real fmax(real x, real y) @safe pure nothrow @nogc { return x > y ? x : y; }
 /****************************************
  * Returns the smaller of x and y.
  */
-static if (__traits(compiles, llvm_minnum(1.0, 2.0))) // LDC-specific
+version(LDC)
 {
     real   fmin(real   x, real   y) @safe pure nothrow @nogc { return llvm_minnum(x, y); }
     //double fmin(double x, double y) @safe pure nothrow @nogc { return llvm_minnum(x, y); }
