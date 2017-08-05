@@ -2052,9 +2052,26 @@ version(none)
 else
 {
 
+pragma(inline, true)
 real exp2(real x) @nogc @trusted pure nothrow
 {
-    version(InlineAsm_X86_X87)
+    version(InlineAsm_X86_Any_X87)
+    {
+        if (!__ctfe)
+            return exp2Asm(x);
+        else
+            return exp2Impl(x);
+    }
+    else
+    {
+        return exp2Impl(x);
+    }
+}
+
+version(InlineAsm_X86_Any_X87)
+private real exp2Asm(real x) @nogc @trusted pure nothrow
+{
+    version(D_InlineAsm_X86)
     {
         enum PARAMSIZE = (real.sizeof+3)&(0xFFFF_FFFC); // always a multiple of 4
 
@@ -2140,7 +2157,7 @@ L_was_nan:
             ret PARAMSIZE;
         }
     }
-    else version(InlineAsm_X86_64_X87)
+    else version(D_InlineAsm_X86_64)
     {
         asm pure nothrow @nogc
         {
@@ -2242,59 +2259,62 @@ L_was_nan:
         }
     }
     else
-    {
-        // Coefficients for exp2(x)
-        static immutable real[3] P = [
-            2.0803843631901852422887E6L,
-            3.0286971917562792508623E4L,
-            6.0614853552242266094567E1L,
-        ];
-        static immutable real[4] Q = [
-            6.0027204078348487957118E6L,
-            3.2772515434906797273099E5L,
-            1.7492876999891839021063E3L,
-            1.0000000000000000000000E0L,
-        ];
+        static assert(0);
+}
 
-        // Overflow and Underflow limits.
-        enum real OF =  16_384.0L;
-        enum real UF = -16_382.0L;
+private real exp2Impl(real x) @nogc @trusted pure nothrow
+{
+    // Coefficients for exp2(x)
+    static immutable real[3] P = [
+        2.0803843631901852422887E6L,
+        3.0286971917562792508623E4L,
+        6.0614853552242266094567E1L,
+    ];
+    static immutable real[4] Q = [
+        6.0027204078348487957118E6L,
+        3.2772515434906797273099E5L,
+        1.7492876999891839021063E3L,
+        1.0000000000000000000000E0L,
+    ];
 
-        // Special cases. Raises an overflow or underflow flag accordingly,
-        // except in the case for CTFE, where there are no hardware controls.
-        if (isNaN(x))
-            return x;
-        if (x > OF)
-        {
-            if (__ctfe)
-                return real.infinity;
-            else
-                return real.max * copysign(real.max, real.infinity);
-        }
-        if (x < UF)
-        {
-            if (__ctfe)
-                return 0.0;
-            else
-                return real.min_normal * copysign(real.min_normal, 0.0);
-        }
+    // Overflow and Underflow limits.
+    enum real OF =  16_384.0L;
+    enum real UF = -16_382.0L;
 
-        // Separate into integer and fractional parts.
-        int n = cast(int) floor(x + 0.5);
-        x -= n;
-
-        // Rational approximation:
-        //  exp2(x) = 1.0 + 2x P(x^^2) / (Q(x^^2) - P(x^^2))
-        const real xx = x * x;
-        const real px = x * poly(xx, P);
-        x = px / (poly(xx, Q) - px);
-        x = 1.0 + ldexp(x, 1);
-
-        // Scale by power of 2.
-        x = ldexp(x, n);
-
+    // Special cases. Raises an overflow or underflow flag accordingly,
+    // except in the case for CTFE, where there are no hardware controls.
+    if (isNaN(x))
         return x;
+    if (x > OF)
+    {
+        if (__ctfe)
+            return real.infinity;
+        else
+            return real.max * copysign(real.max, real.infinity);
     }
+    if (x < UF)
+    {
+        if (__ctfe)
+            return 0.0;
+        else
+            return real.min_normal * copysign(real.min_normal, 0.0);
+    }
+
+    // Separate into integer and fractional parts.
+    int n = cast(int) floor(x + 0.5);
+    x -= n;
+
+    // Rational approximation:
+    //  exp2(x) = 1.0 + 2x P(x^^2) / (Q(x^^2) - P(x^^2))
+    const real xx = x * x;
+    const real px = x * poly(xx, P);
+    x = px / (poly(xx, Q) - px);
+    x = 1.0 + ldexp(x, 1);
+
+    // Scale by power of 2.
+    x = ldexp(x, n);
+
+    return x;
 }
 
 }
