@@ -1610,9 +1610,6 @@ float atanh(float x) @safe pure nothrow @nogc { return atanh(cast(real) x); }
  * greater than long.max, the result is
  * indeterminate.
  */
-version(LDC)
-    long rndtol(real x) @nogc @trusted pure nothrow { return core.stdc.math.llroundl(x); }
-else
 long rndtol(real x) @nogc @safe pure nothrow { pragma(inline, true); return core.math.rndtol(x); }
 
 //FIXME
@@ -1646,19 +1643,6 @@ extern (C) real rndtonl(real x);
  *      $(TR $(TD +$(INFIN)) $(TD +$(INFIN)) $(TD no))
  *      )
  */
-version(LDC)
-{
-    // http://llvm.org/docs/LangRef.html#llvm-sqrt-intrinsic
-    // sqrt(x) when x is less than zero is undefined
-    real   sqrt(real   x) @safe pure nothrow @nogc { return x < 0 ? real.nan : llvm_sqrt(x); }
-    ///ditto
-    double sqrt(double x) @safe pure nothrow @nogc { return x < 0 ? double.nan : llvm_sqrt(x); }
-    ///ditto
-    float  sqrt(float  x) @safe pure nothrow @nogc { return x < 0 ? float.nan : llvm_sqrt(x); }
-}
-else
-{
-
 float sqrt(float x) @nogc @safe pure nothrow { pragma(inline, true); return core.math.sqrt(x); }
 
 /// ditto
@@ -1666,8 +1650,6 @@ double sqrt(double x) @nogc @safe pure nothrow { pragma(inline, true); return co
 
 /// ditto
 real sqrt(real x) @nogc @safe pure nothrow { pragma(inline, true); return core.math.sqrt(x); }
-
-}
 
 @safe pure nothrow @nogc unittest
 {
@@ -3201,9 +3183,6 @@ alias FP_ILOGBNAN = core.stdc.math.FP_ILOGBNAN;
  * References: frexp
  */
 
-version(LDC)
-    real ldexp(real n, int exp) @nogc @trusted pure nothrow { return core.stdc.math.ldexpl(n, exp); }
-else
 real ldexp(real n, int exp) @nogc @safe pure nothrow { pragma(inline, true); return core.math.ldexp(n, exp); }
 //FIXME
 ///ditto
