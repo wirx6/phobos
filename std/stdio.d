@@ -45,7 +45,6 @@ version (LDC)
     version (MinGW)
     {
         version = MINGW_IO;
-        version = NO_GETDELIM;
     }
 }
 
@@ -193,53 +192,9 @@ else version (MINGW_IO)
     extern (C)
     {
         int setmode(int, int);
+        int fgetwc(FILE*);
+        int fputwc(wchar_t,FILE*);
     }
-
-    import core.sync.mutex;
-
-    __gshared Mutex lockMutex;
-    __gshared Mutex[uint] fileLocks;
-
-    void flockfile(FILE* fp)
-    {
-        Mutex mutex;
-
-        if (lockMutex is null)
-             lockMutex = new Mutex;
-
-        lockMutex.lock();
-
-        if (fp._file in fileLocks)
-        {
-            mutex = fileLocks[fp._file];
-        }
-        else
-        {
-            mutex = new Mutex();
-            fileLocks[fp._file] = mutex;
-        }
-        mutex.lock();
-
-        lockMutex.unlock();
-    }
-
-    void funlockfile(FILE* fp)
-    {
-        Mutex mutex;
-
-        if (lockMutex is null)
-             lockMutex = new Mutex;
-        lockMutex.lock();
-
-        if (fp._file in fileLocks)
-        {
-            mutex = fileLocks[fp._file];
-            mutex.unlock();
-        } else
-        { /* Should this be an error */ }
-        lockMutex.unlock();
-    }
-
 
     int fputc_unlocked(int c, _iobuf* fp) { return fputc(c, cast(shared) fp); }
     int fputwc_unlocked(int c, _iobuf* fp)
@@ -261,12 +216,11 @@ else version (MINGW_IO)
     alias fgetc_unlocked FGETC;
     alias fgetwc_unlocked FGETWC;
 
-    alias flockfile FLOCK;
-    alias funlockfile FUNLOCK;
+    alias _lock_file FLOCK;
+    alias _unlock_file FUNLOCK;
 
     alias setmode _setmode;
-    int _fileno(FILE* f) { return f._file; }
-    alias _fileno fileno;
+    alias fileno _fileno;
 
     enum
     {
@@ -4192,6 +4146,45 @@ private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator, File.Orie
 }
 
 version (MICROSOFT_STDIO)
+private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator, File.Orientation /*ignored*/)
+{
+    import core.memory;
+    import std.array : appender, uninitializedArray;
+
+    FLOCK(fps);
+    scope(exit) FUNLOCK(fps);
+
+    /* Since fps is now locked, we can create an "unshared" version
+     * of fp.
+     */
+    auto fp = cast(_iobuf*)fps;
+
+    auto sz = GC.sizeOf(buf.ptr);
+    //auto sz = buf.length;
+    buf = buf.ptr[0 .. sz];
+
+    auto app = appender(buf);
+    app.clear();
+    if(app.capacity == 0)
+        app.reserve(128); // get at least 128 bytes available
+
+    int c;
+    while((c = FGETC(fp)) != -1) {
+        app.put(cast(char) c);
+        if(c == terminator) {
+            buf = app.data;
+            return buf.length;
+        }
+
+    }
+
+    if (ferror(fps))
+        StdioException();
+    buf = app.data;
+    return buf.length;
+}
+
+version (MINGW_IO)
 private size_t readlnImpl(FILE* fps, ref char[] buf, dchar terminator, File.Orientation /*ignored*/)
 {
     import core.memory;
